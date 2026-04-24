@@ -10,6 +10,8 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
+const maxChunkSize = 2 << 20 // 2 MiB
+
 // UploadChunk handles multipart chunk uploads to MinIO.
 func UploadChunk(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -36,12 +38,17 @@ func UploadChunk(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		file, _, err := c.Request.FormFile("chunk")
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxChunkSize)
+		file, header, err := c.Request.FormFile("chunk")
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "chunk file is required"})
 			return
 		}
 		defer file.Close()
+		if header.Size > maxChunkSize {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "chunk too large"})
+			return
+		}
 
 		objectName := sessionID + "/chunk_" + strconv.Itoa(chunkIndex) + ".jpg"
 
