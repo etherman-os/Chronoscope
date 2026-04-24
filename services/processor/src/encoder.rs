@@ -68,6 +68,10 @@ pub async fn encode_h264(
 
             let raw = img.into_raw();
             let mut rgb_frame = frame::Video::new(ffmpeg::format::Pixel::RGB24, width as u32, height as u32);
+            if raw.len() != rgb_frame.data(0).len() {
+                tracing::warn!("Skipping frame with mismatched dimensions: {}", path.display());
+                continue;
+            }
             rgb_frame.data_mut(0).copy_from_slice(&raw);
 
             let mut yuv_frame = frame::Video::empty();
