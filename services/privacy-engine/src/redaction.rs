@@ -20,6 +20,7 @@ pub fn apply(frame: &mut [u8], width: u32, _height: u32, detection: &Detection, 
         }
         RedactionMode::Blur => {
             let stride = (width * 4) as usize;
+            let source = frame.to_vec();
             for i in (detection.start..detection.end).step_by(4) {
                 if i + 3 < frame.len() {
                     let mut r = 0u32;
@@ -31,11 +32,11 @@ pub fn apply(frame: &mut [u8], width: u32, _height: u32, detection: &Detection, 
                     for dy in -1..=1 {
                         for dx in -1..=1 {
                             let idx = i as isize + dy * stride as isize + dx * 4;
-                            if idx >= 0 && (idx as usize) + 3 < frame.len() {
+                            if idx >= 0 && (idx as usize) + 3 < source.len() {
                                 let idx = idx as usize;
-                                r += frame[idx] as u32;
-                                g += frame[idx + 1] as u32;
-                                b += frame[idx + 2] as u32;
+                                r += source[idx] as u32;
+                                g += source[idx + 1] as u32;
+                                b += source[idx + 2] as u32;
                                 count += 1;
                             }
                         }
