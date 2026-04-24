@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/chronoscope/ingestion/internal/config"
@@ -32,7 +33,9 @@ func CompleteSession(cfg *config.Config) gin.HandlerFunc {
 
 		var projectID string
 		if err := cfg.DB.QueryRow(`SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&projectID); err == nil {
-			_ = LogAudit(cfg, projectID, "session_completed", "", map[string]interface{}{"session_id": sessionID})
+			if err := LogAudit(cfg, projectID, "session_completed", "", map[string]interface{}{"session_id": sessionID}); err != nil {
+				log.Printf("audit log failed: %v", err)
+			}
 		}
 
 		c.JSON(http.StatusOK, gin.H{"status": "completed"})

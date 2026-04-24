@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -62,7 +63,9 @@ func UploadChunk(cfg *config.Config) gin.HandlerFunc {
 
 		var projectID string
 		if err := cfg.DB.QueryRow(`SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&projectID); err == nil {
-			_ = LogAudit(cfg, projectID, "chunk_uploaded", "", map[string]interface{}{"session_id": sessionID, "chunk_index": chunkIndex})
+			if err := LogAudit(cfg, projectID, "chunk_uploaded", "", map[string]interface{}{"session_id": sessionID, "chunk_index": chunkIndex}); err != nil {
+				log.Printf("audit log failed: %v", err)
+			}
 		}
 
 		c.JSON(http.StatusOK, gin.H{

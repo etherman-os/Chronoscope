@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -176,11 +177,13 @@ func DeleteUserData(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		if pid, ok := projectID.(string); ok {
-			_ = LogAudit(cfg, pid, "gdpr_delete", "", map[string]interface{}{
+			if err := LogAudit(cfg, pid, "gdpr_delete", "", map[string]interface{}{
 				"user_id":          userID,
 				"deleted_sessions": deletedSessions,
 				"deleted_events":   deletedEvents,
-			})
+			}); err != nil {
+				log.Printf("audit log failed: %v", err)
+			}
 		}
 
 		c.JSON(http.StatusOK, gin.H{

@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/chronoscope/ingestion/internal/config"
@@ -93,7 +94,9 @@ func UploadEvents(cfg *config.Config) gin.HandlerFunc {
 
 		var projectID string
 		if err := cfg.DB.QueryRow(`SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&projectID); err == nil {
-			_ = LogAudit(cfg, projectID, "events_uploaded", "", map[string]interface{}{"session_id": sessionID, "event_count": len(req.Events)})
+			if err := LogAudit(cfg, projectID, "events_uploaded", "", map[string]interface{}{"session_id": sessionID, "event_count": len(req.Events)}); err != nil {
+				log.Printf("audit log failed: %v", err)
+			}
 		}
 
 		c.JSON(http.StatusOK, gin.H{"count": len(req.Events)})

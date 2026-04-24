@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -66,7 +67,9 @@ func InitSession(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		if pid, ok := projectID.(string); ok {
-			_ = LogAudit(cfg, pid, "session_initiated", req.UserID, map[string]interface{}{"session_id": sessionID})
+			if err := LogAudit(cfg, pid, "session_initiated", req.UserID, map[string]interface{}{"session_id": sessionID}); err != nil {
+				log.Printf("audit log failed: %v", err)
+			}
 		}
 
 		token := uuid.New().String()
