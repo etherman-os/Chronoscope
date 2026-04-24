@@ -137,6 +137,9 @@ func GetSession(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sessionID := c.Param("id")
 
+		authenticatedProjectID, _ := c.Get("project_id")
+		authPID, _ := authenticatedProjectID.(string)
+
 		var s models.Session
 		err := cfg.DB.QueryRow(
 			`SELECT id, project_id, user_id, duration_ms, video_path, event_count, error_count, metadata, status, created_at, completed_at FROM sessions WHERE id = $1`,
@@ -148,6 +151,11 @@ func GetSession(cfg *config.Config) gin.HandlerFunc {
 				return
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get session"})
+			return
+		}
+
+		if s.ProjectID != authPID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "session does not belong to project"})
 			return
 		}
 
