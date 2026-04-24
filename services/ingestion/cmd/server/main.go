@@ -23,6 +23,7 @@ func main() {
 	router.Use(middleware.CORS())
 
 	v1 := router.Group("/v1")
+	v1.Use(middleware.RateLimit(100, time.Minute))
 	v1.Use(middleware.APIKeyAuth(cfg.DB))
 
 	v1.POST("/sessions/init", handlers.InitSession(cfg))
