@@ -39,8 +39,8 @@ pub extern "C" fn chronoscope_privacy_process_frame(
     if width == 0 || height == 0 || stride == 0 || width > MAX_DIMENSION || height > MAX_DIMENSION {
         return;
     }
-    let len = usize::from(height)
-        .checked_mul(usize::from(stride))
+    let len = (height as usize)
+        .checked_mul(stride as usize)
         .expect("frame dimension overflow");
     if len == 0 {
         return;
