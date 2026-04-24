@@ -1,6 +1,6 @@
 import Foundation
 
-public final class Chronoscope {
+public actor Chronoscope {
     public static let shared = Chronoscope()
     private var session: CaptureSession?
     private init() {}
