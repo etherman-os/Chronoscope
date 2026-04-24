@@ -25,6 +25,15 @@ func UploadEvents(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sessionID := c.Param("id")
 
+		authenticatedProjectID, _ := c.Get("project_id")
+		authPID, _ := authenticatedProjectID.(string)
+		var ownerProjectID string
+		err := cfg.DB.QueryRow(`SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&ownerProjectID)
+		if err != nil || ownerProjectID != authPID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "session does not belong to project"})
+			return
+		}
+
 		var req uploadEventsRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
