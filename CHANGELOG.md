@@ -39,3 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rate limiting
 - CORS restrictions
 - Input validation
+
+### Known Limitations
+- Test coverage ~30.1% (MVP baseline, more tests in next iteration)
+- Video encoding requires FFmpeg (included in Docker image)
+- Windows SDK builds only on CI windows-latest runner
+- macOS SDK requires macOS 12.3+ for ScreenCaptureKit

@@ -1,4 +1,5 @@
 name: Release
+
 on:
   push:
     tags:
@@ -6,15 +7,105 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-action@stable
+      
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Go Tests
+        run: |
+          cd services/ingestion
+          go test ./internal/...
+          cd ../analytics
+          go test ./internal/...
+      
+      - name: Rust Tests
+        run: |
+          cd services/privacy-engine
+          cargo test
+      
+      - name: Frontend Build
+        run: |
+          cd services/web
+          npm ci
+          npm run build
+      
+      - name: E2E Test
+        run: |
+          docker-compose -f docker-compose.test.yml up -d
+          sleep 10
+          ./tools/e2e-test/run.sh
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}/ingestion
+            ghcr.io/${{ github.repository }}/analytics
+            ghcr.io/${{ github.repository }}/processor
+      
+      - name: Build and push ingestion
+        uses: docker/build-push-action@v5
+        with:
+          context: services/ingestion
+          push: true
+          tags: ghcr.io/${{ github.repository }}/ingestion:${{ github.ref_name }}
+      
+      - name: Build and push analytics
+        uses: docker/build-push-action@v5
+        with:
+          context: services/analytics
+          push: true
+          tags: ghcr.io/${{ github.repository }}/analytics:${{ github.ref_name }}
+      
+      - name: Build and push processor
+        uses: docker/build-push-action@v5
+        with:
+          context: services/processor
+          push: true
+          tags: ghcr.io/${{ github.repository }}/processor:${{ github.ref_name }}
+
   release:
+    needs: [test, docker]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      
       - name: Generate Changelog
         id: changelog
         run: |
@@ -22,17 +113,24 @@ jobs:
           git log --pretty=format:"- %s (%h)" $(git describe --tags --abbrev=0 HEAD~1)..HEAD >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
+      
       - name: Create Release
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
-          name: Release ${{ github.ref }}
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body: |
             ## What's Changed
             ${{ steps.changelog.outputs.CHANGELOG }}
+            
+            ## Docker Images
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}/ingestion:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository }}/analytics:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository }}/processor:${{ github.ref_name }}
+            ```
             
             ## Installation
             ```bash
@@ -40,5 +138,10 @@ jobs:
             cd chronoscope
             make up
             ```
+            
+            ## Known Limitations
+            - Test coverage ~30% (MVP baseline)
+            - Video encoding requires FFmpeg (included in Docker)
+            - Windows SDK builds on CI only (requires Windows runner)
           draft: false
           prerelease: false
