@@ -17,7 +17,8 @@ pub async fn encode_h264(
             anyhow::bail!("no frames to encode");
         }
 
-        let output_path = std::env::temp_dir().join(format!("{}.mp4", session_id));
+        let safe_id = session_id.replace(['/', '\\', '\0'], "_");
+        let output_path = std::env::temp_dir().join(format!("{}.mp4", safe_id));
         let mut octx = format::output(&output_path)?;
 
         // Infer dimensions from the first frame
