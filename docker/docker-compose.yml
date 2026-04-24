@@ -52,7 +52,7 @@ services:
       - "8081:8081"
     environment:
       DATABASE_URL: postgres://chronoscope:chronoscope@postgres:5432/chronoscope?sslmode=disable
-      API_KEY: dev-api-key-12345
+      API_KEY: acad389951a6aa7659c8315a796f91e9
     depends_on:
       - postgres
 

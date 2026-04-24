@@ -19,7 +19,7 @@ k6 run stress-test.js
 ## Environment Variables
 
 - `BASE_URL`: API base URL (default: http://localhost:8080/v1)
-- `API_KEY`: API key for authentication (default: dev-api-key-12345)
+- `API_KEY`: API key for authentication (default: acad389951a6aa7659c8315a796f91e9)
 
 ## Thresholds
 

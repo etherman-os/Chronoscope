@@ -64,6 +64,6 @@ INSERT INTO projects (org_id, name, api_key_hash)
 SELECT 
     id,
     'Demo App',
-    'dev-api-key-12345'
+    '0b61f1668881de754863abb929c1d7bd7048419fbec15bb49511d2c5781c7c13'
 FROM organizations 
 WHERE name = 'Chronoscope Dev';

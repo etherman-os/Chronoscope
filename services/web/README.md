@@ -24,7 +24,7 @@ The development server will start on `http://localhost:3000`.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `VITE_API_URL` | Base URL for the API | `http://localhost:8080/v1` |
-| `VITE_API_KEY` | API key for authentication | `dev-api-key-12345` |
+| `VITE_API_KEY` | API key for authentication | `acad389951a6aa7659c8315a796f91e9` |
 
 Create a `.env.local` file to override defaults:
 
