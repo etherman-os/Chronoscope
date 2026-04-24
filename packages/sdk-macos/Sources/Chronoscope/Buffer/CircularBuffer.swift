@@ -9,6 +9,7 @@ public actor CircularBuffer {
     private let lock = NSLock()
 
     public init(capacity: Int) {
+        precondition(capacity > 0, "CircularBuffer capacity must be > 0")
         self.capacity = capacity
         self.storage = Data(count: capacity)
     }
