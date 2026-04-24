@@ -1,0 +1,10 @@
+.env
+.env.*
+.git
+.gitignore
+*.md
+.vscode/
+.idea/
+node_modules/
+target/
+dist/

@@ -10,7 +10,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o server cmd/server/main.go
 
 # Stage 2: Run
-FROM alpine:latest
+FROM alpine:3.19
 
 RUN apk add --no-cache ca-certificates
 
