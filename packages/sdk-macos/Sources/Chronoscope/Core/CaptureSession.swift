@@ -110,7 +110,12 @@ public actor CaptureSession {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 300
+        let session = URLSession(configuration: config)
+
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 else {
             let message = String(data: data, encoding: .utf8) ?? "Unknown error"
             throw ChronoscopeError.sessionInitFailed(message)

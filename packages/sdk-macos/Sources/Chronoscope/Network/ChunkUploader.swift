@@ -4,11 +4,16 @@ public actor ChunkUploader {
     private let endpoint: URL
     private let apiKey: String
     private let sessionId: String
+    private let session: URLSession
 
     public init(endpoint: URL, apiKey: String, sessionId: String) {
         self.endpoint = endpoint
         self.apiKey = apiKey
         self.sessionId = sessionId
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 300
+        self.session = URLSession(configuration: config)
     }
 
     public func uploadChunk(data: Data, index: Int) async throws {
@@ -22,7 +27,7 @@ public actor ChunkUploader {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = createMultipartBody(data: data, index: index, boundary: boundary)
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ChronoscopeError.uploadFailed("Invalid response")
         }
@@ -38,7 +43,7 @@ public actor ChunkUploader {
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ChronoscopeError.uploadFailed("Invalid response")
         }
