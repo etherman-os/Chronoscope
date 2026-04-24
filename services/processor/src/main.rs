@@ -1,13 +1,4 @@
-mod config;
-mod db;
-mod deduplicator;
-mod downloader;
-mod encoder;
-mod indexer;
-mod queue;
-mod sync;
-mod uploader;
-
+use chronoscope_processor::{config, db, deduplicator, downloader, encoder, indexer, queue, sync, uploader};
 use tracing::{error, info};
 
 #[tokio::main]

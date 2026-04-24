@@ -6,10 +6,10 @@ This document provides practical examples for interacting with the Chronoscope R
 
 ## Base URLs
 
-| Environment | URL |
-|-------------|-----|
-| Local (Ingestion) | `http://localhost:8080/v1` |
-| Local (Analytics) | `http://localhost:8081/v1` |
+| Environment         | URL                              |
+|---------------------|----------------------------------|
+| Local (Ingestion)   | `http://localhost:8080/v1`       |
+| Local (Analytics)   | `http://localhost:8081/v1`       |
 
 ## Authentication
 
@@ -17,6 +17,39 @@ All endpoints require an API key passed in the `X-API-Key` header.
 
 ```bash
 export CHRONOSCOPE_API_KEY="your-project-api-key"
+```
+
+---
+
+## Rate Limiting
+
+- **Ingestion API**: 100 requests/minute per API key (bursts up to 20)
+- **Analytics API**: 300 requests/minute per API key
+- Exceeding the limit returns `429 Too Many Requests` with a `Retry-After` header.
+
+---
+
+## Error Codes
+
+| Status | Code                | Description                                      |
+|--------|---------------------|--------------------------------------------------|
+| 400    | `bad_request`       | Invalid request body or query parameters         |
+| 401    | `unauthorized`      | Missing or invalid `X-API-Key`                   |
+| 403    | `forbidden`         | API key does not have access to this resource    |
+| 404    | `not_found`         | Session, project, or resource not found          |
+| 409    | `conflict`          | Resource already exists or state conflict        |
+| 429    | `rate_limited`      | Too many requests; see `Retry-After` header      |
+| 500    | `internal_error`    | Unexpected server error                          |
+
+**Example error response:**
+
+```json
+{
+  "error": {
+    "code": "bad_request",
+    "message": "capture_mode must be one of: video, events, hybrid"
+  }
+}
 ```
 
 ---
@@ -41,7 +74,8 @@ curl -X POST http://localhost:8080/v1/sessions/init \
   }'
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -66,7 +100,8 @@ curl -X POST "http://localhost:8080/v1/sessions/${SESSION_ID}/chunks" \
   -F "timestamp_end=5000"
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "received": true,
@@ -106,7 +141,8 @@ curl -X POST "http://localhost:8080/v1/sessions/${SESSION_ID}/events" \
   }'
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "received": true
@@ -124,7 +160,8 @@ curl -X POST "http://localhost:8080/v1/sessions/${SESSION_ID}/complete" \
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "status": "completed"
@@ -142,7 +179,8 @@ curl "http://localhost:8080/v1/sessions?project_id=${PROJECT_ID}&limit=10&offset
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "sessions": [
@@ -169,7 +207,8 @@ curl "http://localhost:8080/v1/sessions/${SESSION_ID}" \
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "session": {
@@ -205,7 +244,8 @@ curl "http://localhost:8081/v1/analytics/heatmap?project_id=${PROJECT_ID}&start_
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "heatmap": [
@@ -226,7 +266,8 @@ curl "http://localhost:8081/v1/analytics/funnel?project_id=${PROJECT_ID}&funnel_
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "funnel": [
@@ -248,7 +289,8 @@ curl "http://localhost:8081/v1/analytics/sessions/stats?project_id=${PROJECT_ID}
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "total_sessions": 1240,
@@ -271,7 +313,8 @@ curl -X POST "http://localhost:8080/v1/gdpr/export/${USER_ID}" \
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "download_url": "https://minio.example.com/exports/user-123.zip?token=...",
@@ -290,7 +333,8 @@ curl -X DELETE "http://localhost:8080/v1/gdpr/delete/${USER_ID}" \
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "deleted": true,
@@ -309,7 +353,8 @@ curl "http://localhost:8080/v1/gdpr/audit-logs?project_id=${PROJECT_ID}&limit=50
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
-**Response**:
+**Response:**
+
 ```json
 {
   "logs": [
@@ -322,6 +367,25 @@ curl "http://localhost:8080/v1/gdpr/audit-logs?project_id=${PROJECT_ID}&limit=50
   ]
 }
 ```
+
+---
+
+## Endpoint Summary
+
+| Method | Endpoint                                | Description             | Auth     |
+|--------|-----------------------------------------|-------------------------|----------|
+| POST   | `/v1/sessions/init`                     | Initialize session      | API Key  |
+| POST   | `/v1/sessions/{id}/chunks`              | Upload video chunk      | API Key  |
+| POST   | `/v1/sessions/{id}/events`              | Upload event batch      | API Key  |
+| POST   | `/v1/sessions/{id}/complete`            | Finalize session        | API Key  |
+| GET    | `/v1/sessions`                          | List sessions           | API Key  |
+| GET    | `/v1/sessions/{id}`                     | Get session details     | API Key  |
+| GET    | `/v1/analytics/heatmap`                 | Heatmap data            | API Key  |
+| GET    | `/v1/analytics/funnel`                  | Funnel data             | API Key  |
+| GET    | `/v1/analytics/sessions/stats`          | Session statistics      | API Key  |
+| POST   | `/v1/gdpr/export/{user_id}`             | Export user data        | API Key  |
+| DELETE | `/v1/gdpr/delete/{user_id}`             | Delete user data        | API Key  |
+| GET    | `/v1/gdpr/audit-logs`                   | List audit logs         | API Key  |
 
 ---
 

@@ -16,17 +16,17 @@ Thank you for your interest in contributing! This guide will help you get starte
 
 ### Prerequisites
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Go | 1.22+ | Ingestion & Analytics APIs |
-| Rust | 1.75+ | Processor, Privacy Engine, Linux SDK |
-| Swift | 5.9+ | macOS SDK |
-| Node.js | 20+ | Web Dashboard & Landing Page |
-| PostgreSQL | 16 | Database |
-| Redis | 7 | Cache / Queue |
-| MinIO | Latest | Object Storage |
-| Docker & Docker Compose | Latest | Local infrastructure |
-| Protobuf Compiler (`protoc`) | 3.x | Schema generation |
+| Tool                      | Version | Purpose                          |
+|---------------------------|---------|----------------------------------|
+| Go                        | 1.22+   | Ingestion & Analytics APIs       |
+| Rust                      | 1.75+   | Processor, Privacy Engine, Linux SDK |
+| Swift                     | 5.9+    | macOS SDK                        |
+| Node.js                   | 20+     | Web Dashboard & Landing Page     |
+| PostgreSQL                | 16      | Database                         |
+| Redis                     | 7       | Cache / Queue                    |
+| MinIO                     | Latest  | Object Storage                   |
+| Docker & Docker Compose   | Latest  | Local infrastructure             |
+| Protobuf Compiler (`protoc`) | 3.x  | Schema generation                |
 
 ### 1. Clone the Repository
 
@@ -170,16 +170,21 @@ We use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ### Types
 
-| Type | Description |
-|------|-------------|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `docs` | Documentation only |
-| `style` | Code style (formatting, missing semi-colons, etc.) |
-| `refactor` | Code refactoring |
-| `perf` | Performance improvement |
-| `test` | Adding or correcting tests |
-| `chore` | Build process or auxiliary tool changes |
+| Type       | Description                                          |
+|------------|------------------------------------------------------|
+| `feat`     | New feature                                          |
+| `fix`      | Bug fix                                              |
+| `docs`     | Documentation only                                   |
+| `style`    | Code style (formatting, missing semi-colons, etc.)   |
+| `refactor` | Code refactoring                                     |
+| `perf`     | Performance improvement                              |
+| `test`     | Adding or correcting tests                           |
+| `chore`    | Build process or auxiliary tool changes              |
+| `security` | Security fix or improvement                          |
+
+### Scopes
+
+Common scopes: `ingestion`, `analytics`, `processor`, `privacy`, `web`, `landing`, `sdk-macos`, `sdk-windows`, `sdk-linux`, `docs`, `ci`.
 
 ### Examples
 
@@ -189,6 +194,8 @@ feat(ingestion): add chunked upload resume support
 fix(sdk-macos): prevent memory leak in capture buffer
 
 docs(readme): update quick start instructions
+
+security(ingestion): add rate limiting per API key
 ```
 
 ---
@@ -251,9 +258,11 @@ docs(readme): update quick start instructions
 All PRs trigger GitHub Actions workflows that run:
 - Go unit tests (`services/ingestion`, `services/analytics`)
 - Swift tests (`packages/sdk-macos`)
+- Rust clippy checks
+- Web and Landing builds
 - Lint checks
 
-See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for details.
+See [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) for details.
 
 ---
 

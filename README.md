@@ -1,124 +1,68 @@
 # Chronoscope
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go](https://img.shields.io/badge/Go-1.22-blue.svg)](https://golang.org/)
-[![Rust](https://img.shields.io/badge/Rust-1.75-orange.svg)](https://www.rust-lang.org/)
+[![Go Report Card](https://goreportcard.com/badge/github.com/etherman-os/chronoscope)](https://goreportcard.com/report/github.com/etherman-os/chronoscope)
+[![CI Status](https://github.com/etherman-os/chronoscope/actions/workflows/ci.yml/badge.svg)](https://github.com/etherman-os/chronoscope/actions)
 
-> **Session replay infrastructure for native desktop applications.**
-> Free. Open source. Self-hosted.
-> See every click. Fix every bug.
+> **Session replay for desktop apps. Free. Open source. Self-hosted.**
 
 ---
 
-## What is Chronoscope?
+## Quick Start
 
-Web apps have session replay (FullStory, PostHog, LogRocket). Desktop apps don't.
+```bash
+git clone https://github.com/etherman-os/chronoscope.git && cd chronoscope
+make up                          # Start infrastructure
+cd services/ingestion && cp .env.example .env && go run cmd/server/main.go
+cd services/web && npm install && npm run dev
+# Open http://localhost:3000
+```
 
-Chronoscope brings session replay to **macOS, Windows, and Linux** applications:
-- Record user sessions with screen capture
-- Replay sessions with event timeline overlay
-- Analyze user behavior with heatmaps and funnels
-- Stay compliant with built-in privacy and GDPR tools
+See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full 5-minute guide.
+
+---
+
+## Features
+
+- :movie_camera: **Cross-platform capture** — macOS, Windows, Linux SDKs
+- :arrows_counterclockwise: **Session replay** — video + event timeline overlay
+- :bar_chart: **Analytics** — heatmaps, funnels, session stats
+- :lock: **Privacy-first** — PII masking, GDPR export/delete, audit logs
+- :rocket: **Self-hosted** — Docker Compose, single node or clustered
+
+---
 
 ## Architecture
 
 ```mermaid
 graph TD
     A[Desktop App] -->|SDK| B[Ingestion API]
-    B --> C[PostgreSQL]
+    B --> C[(PostgreSQL)]
     B --> D[MinIO Storage]
-    E[Video Processor] --> D
+    D --> E[Video Processor]
+    E --> D
     E --> C
     F[Web Dashboard] --> B
-    G[Analytics API] --> C
+    F --> G[Analytics API]
+    G --> C
+    H[Privacy Engine] --> E
 ```
 
-## Quick Start
+---
 
-```bash
-# Clone
-git clone https://github.com/etherman-os/chronoscope.git
-cd chronoscope
+## Documentation
 
-# Start infrastructure
-make up
-
-# Start backend
-cd services/ingestion
-cp .env.example .env
-go run cmd/server/main.go
-
-# Start analytics (optional)
-cd services/analytics
-cp .env.example .env
-go run cmd/server/main.go
-
-# Start frontend
-cd services/web
-npm install
-npm run dev
-```
-
-## Features
-
-### Capture SDKs
-- **macOS**: Swift + ScreenCaptureKit (macOS 12.3+)
-- **Windows**: C++20 + WinRT Graphics Capture API
-- **Linux**: Rust + PipeWire (Wayland) / X11 SHM
-
-### Backend
-- **Ingestion API**: Go + Gin + PostgreSQL + MinIO
-- **Video Processor**: Rust + FFmpeg + Perceptual Hash dedup
-- **Analytics API**: Go + Gin + PostgreSQL aggregates
-
-### Frontend
-- **Replay Dashboard**: React + Vite + TypeScript + Canvas
-- **Landing Page**: Next.js + Tailwind (static export)
-
-### Privacy & Compliance
-- PII detection (credit cards, emails, passwords)
-- Real-time frame redaction (blur/blackout/replace)
-- GDPR export and right-to-be-forgotten
-- Audit logging
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Capture | Swift, C++20, Rust |
-| Backend | Go, Rust |
-| Frontend | React, TypeScript, Next.js |
-| Database | PostgreSQL |
-| Storage | MinIO (S3-compatible) |
-| Queue | Redis |
-| Infra | Docker Compose |
-
-## Directory Structure
-
-```
-Chronoscope/
-├── packages/
-│   ├── sdk-macos/       # Swift SDK
-│   ├── sdk-windows/     # C++ SDK
-│   └── sdk-linux/       # Rust SDK
-├── services/
-│   ├── ingestion/       # Go API
-│   ├── processor/       # Rust video pipeline
-│   ├── analytics/       # Go analytics API
-│   ├── web/             # React dashboard
-│   ├── landing/         # Next.js landing page
-│   └── privacy-engine/  # Rust privacy library
-├── protocols/           # OpenAPI + Protobuf
-├── infrastructure/      # Docker, Helm
-├── tools/
-│   └── load-test/       # k6 scripts
-└── migrations/          # PostgreSQL schema
-```
+- [Quick Start](docs/QUICKSTART.md) — 5-minute setup
+- [API Reference](docs/API.md) — REST endpoints and examples
+- [Architecture](docs/ARCHITECTURE.md) — System design and data flow
+- [Deployment](docs/DEPLOYMENT.md) — Production deployment guide
+- [Security](docs/SECURITY.md) — Security policy and best practices
+- [Contributing](docs/CONTRIBUTING.md) — Development setup and PR process
 
 ## Contributing
 
-See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).
+We welcome contributions! Please read [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) before opening a PR.
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) file.
+[MIT](LICENSE) © Chronoscope Contributors

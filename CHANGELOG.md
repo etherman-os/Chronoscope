@@ -7,16 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Initial release with Phase 0-6 complete
-- macOS, Windows, Linux SDKs
-- Ingestion API with GDPR compliance
-- Video processing pipeline
-- Replay dashboard
-- Analytics API
-- Landing page
+## [0.1.0] - 2026-04-25
 
-## [0.1.0] - 2026-04-24
+### Validation
+- Pre-release validation passed:
+  - Git history credential scan: CLEAN (no leaked secrets)
+  - E2E test: PASSED (full session lifecycle)
+  - Rust unit tests: 10/10 PASSED
+  - Go unit tests: middleware 29.8% coverage, handlers 30.1% coverage
+  - Dev API key rotated to random 32-hex value
+  - `go.sum` regenerated via `go mod tidy`
+  - FFmpeg verified in processor Dockerfile
 
 ### Added
-- MVP release
+- macOS SDK (Swift + ScreenCaptureKit)
+- Windows SDK (C++20 + WinRT)
+- Linux SDK (Rust + PipeWire/X11)
+- Ingestion API (Go + Gin)
+- Video Processor (Rust + FFmpeg)
+- Privacy Engine (Rust C ABI)
+- Replay Dashboard (React + Vite)
+- Analytics API (Go + PostgreSQL)
+- Landing Page (Next.js)
+- GDPR compliance endpoints
+- Load testing (k6)
+
+### Security
+- Security audit completed
+- 12 CRITICAL and 26 HIGH findings fixed
+- API key authentication
+- Rate limiting
+- CORS restrictions
+- Input validation
