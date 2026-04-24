@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use aws_sdk_s3::Client as S3Client;
 use deadpool_postgres::Pool;
 use redis::aio::MultiplexedConnection;
@@ -15,7 +15,7 @@ pub struct Config {
 impl Config {
     pub async fn from_env() -> Result<Self> {
         let db_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://chronoscope:chronoscope@localhost:5432/chronoscope".to_string());
+            .context("DATABASE_URL must be set")?;
 
         let mut pg_cfg = deadpool_postgres::Config::new();
         pg_cfg.url = Some(db_url);
@@ -24,9 +24,9 @@ impl Config {
         let aws_endpoint = std::env::var("AWS_ENDPOINT_URL")
             .unwrap_or_else(|_| "http://localhost:9000".to_string());
         let access_key = std::env::var("AWS_ACCESS_KEY_ID")
-            .unwrap_or_else(|_| "chronoscope".to_string());
+            .context("AWS_ACCESS_KEY_ID must be set")?;
         let secret_key = std::env::var("AWS_SECRET_ACCESS_KEY")
-            .unwrap_or_else(|_| "chronoscope123".to_string());
+            .context("AWS_SECRET_ACCESS_KEY must be set")?;
 
         let aws_cfg = aws_config::from_env()
             .endpoint_url(aws_endpoint)
@@ -53,9 +53,9 @@ impl Config {
         };
 
         let bucket_name = std::env::var("S3_BUCKET")
-            .unwrap_or_else(|_| "chronoscope-sessions".to_string());
+            .context("S3_BUCKET must be set")?;
         let processed_bucket_name = std::env::var("S3_PROCESSED_BUCKET")
-            .unwrap_or_else(|_| "chronoscope-processed".to_string());
+            .context("S3_PROCESSED_BUCKET must be set")?;
 
         Ok(Config {
             db_pool,
