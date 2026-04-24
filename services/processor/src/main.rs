@@ -35,7 +35,7 @@ async fn process_session(config: &config::Config, session_id: &str) -> anyhow::R
     info!("Processing session: {}", session_id);
 
     // 1. Download chunks from MinIO/S3
-    let chunks = downloader::download_chunks(config, session_id).await?;
+    let (_temp_dir, chunks) = downloader::download_chunks(config, session_id).await?;
 
     // 2. Deduplicate frames using perceptual hash
     let unique_frames = deduplicator::deduplicate(chunks).await?;

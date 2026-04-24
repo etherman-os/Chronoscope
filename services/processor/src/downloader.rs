@@ -2,7 +2,7 @@ use crate::config::Config;
 use anyhow::Result;
 use std::path::PathBuf;
 
-pub async fn download_chunks(config: &Config, session_id: &str) -> Result<Vec<PathBuf>> {
+pub async fn download_chunks(config: &Config, session_id: &str) -> Result<(tempfile::TempDir, Vec<PathBuf>)> {
     let prefix = format!("{}/", session_id);
 
     let list_resp = config
@@ -34,9 +34,5 @@ pub async fn download_chunks(config: &Config, session_id: &str) -> Result<Vec<Pa
         paths.push(file_path);
     }
 
-    // Keep temp_dir alive by leaking it (simpler for this pipeline)
-    // In production you'd manage the TempDir lifecycle more carefully
-    let _ = Box::leak(Box::new(temp_dir));
-
-    Ok(paths)
+    Ok((temp_dir, paths))
 }
