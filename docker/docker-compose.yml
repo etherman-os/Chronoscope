@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chronoscope-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: chronoscope
+      POSTGRES_PASSWORD: chronoscope
+      POSTGRES_DB: chronoscope
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chronoscope -d chronoscope"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: chronoscope-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: chronoscope-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: chronoscope
+      MINIO_ROOT_PASSWORD: chronoscope123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  analytics:
+    build: ../services/analytics
+    ports:
+      - "8081:8081"
+    environment:
+      DATABASE_URL: postgres://chronoscope:chronoscope@postgres:5432/chronoscope?sslmode=disable
+      API_KEY: dev-api-key-12345
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  minio_data:

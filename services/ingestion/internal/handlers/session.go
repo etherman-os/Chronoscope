@@ -1,0 +1,198 @@
+package handlers
+
+import (
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/chronoscope/ingestion/internal/config"
+	"github.com/chronoscope/ingestion/internal/models"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+)
+
+type initSessionRequest struct {
+	UserID      string                 `json:"user_id" binding:"required"`
+	CaptureMode string                 `json:"capture_mode" binding:"required"`
+	Metadata    map[string]interface{} `json:"metadata"`
+}
+
+type initSessionResponse struct {
+	SessionID string    `json:"session_id"`
+	UploadURL string    `json:"upload_url"`
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// InitSession creates a new capture session.
+func InitSession(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req initSessionRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		projectID, _ := c.Get("project_id")
+		sessionID := uuid.New().String()
+
+		// Merge capture_mode into metadata for storage.
+		meta := req.Metadata
+		if meta == nil {
+			meta = make(map[string]interface{})
+		}
+		meta["capture_mode"] = req.CaptureMode
+
+		metadataJSON, err := json.Marshal(meta)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to marshal metadata"})
+			return
+		}
+
+		_, err = cfg.DB.Exec(
+			`INSERT INTO sessions (id, project_id, user_id, status, metadata, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+			sessionID,
+			projectID,
+			req.UserID,
+			"capturing",
+			metadataJSON,
+			time.Now(),
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create session"})
+			return
+		}
+
+		if pid, ok := projectID.(string); ok {
+			_ = LogAudit(cfg, pid, "session_initiated", req.UserID, map[string]interface{}{"session_id": sessionID})
+		}
+
+		token := uuid.New().String()
+		expiresAt := time.Now().Add(1 * time.Hour)
+
+		c.JSON(http.StatusCreated, initSessionResponse{
+			SessionID: sessionID,
+			UploadURL: "/v1/sessions/" + sessionID + "/chunks",
+			Token:     token,
+			ExpiresAt: expiresAt,
+		})
+	}
+}
+
+// ListSessions returns paginated sessions for a project.
+func ListSessions(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		projectID := c.Query("project_id")
+		if projectID == "" {
+			if pid, ok := c.Get("project_id"); ok {
+				projectID = pid.(string)
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "project_id is required"})
+				return
+			}
+		}
+
+		limit := 20
+		offset := 0
+		if l := c.Query("limit"); l != "" {
+			if n, err := strconv.Atoi(l); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		if o := c.Query("offset"); o != "" {
+			if n, err := strconv.Atoi(o); err == nil && n >= 0 {
+				offset = n
+			}
+		}
+
+		rows, err := cfg.DB.Query(
+			`SELECT id, project_id, user_id, duration_ms, video_path, event_count, error_count, metadata, status, created_at, completed_at FROM sessions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+			projectID, limit, offset,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list sessions"})
+			return
+		}
+		defer rows.Close()
+
+		sessions := []models.Session{}
+		for rows.Next() {
+			var s models.Session
+			err := rows.Scan(&s.ID, &s.ProjectID, &s.UserID, &s.DurationMs, &s.VideoPath, &s.EventCount, &s.ErrorCount, &s.Metadata, &s.Status, &s.CreatedAt, &s.CompletedAt)
+			if err != nil {
+				continue
+			}
+			sessions = append(sessions, s)
+		}
+
+		c.JSON(http.StatusOK, gin.H{"sessions": sessions})
+	}
+}
+
+// GetSession retrieves a single session and its associated events.
+func GetSession(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		sessionID := c.Param("id")
+
+		var s models.Session
+		err := cfg.DB.QueryRow(
+			`SELECT id, project_id, user_id, duration_ms, video_path, event_count, error_count, metadata, status, created_at, completed_at FROM sessions WHERE id = $1`,
+			sessionID,
+		).Scan(&s.ID, &s.ProjectID, &s.UserID, &s.DurationMs, &s.VideoPath, &s.EventCount, &s.ErrorCount, &s.Metadata, &s.Status, &s.CreatedAt, &s.CompletedAt)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get session"})
+			return
+		}
+
+		rows, err := cfg.DB.Query(
+			`SELECT id, session_id, event_type, timestamp_ms, x, y, target, payload, created_at FROM events WHERE session_id = $1 ORDER BY timestamp_ms ASC`,
+			sessionID,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get events"})
+			return
+		}
+		defer rows.Close()
+
+		events := []map[string]interface{}{}
+		for rows.Next() {
+			var eventID int64
+			var sid string
+			var eventType string
+			var timestampMs sql.NullInt64
+			var x, y sql.NullInt32
+			var target sql.NullString
+			var payload sql.NullString
+			var createdAt time.Time
+
+			err := rows.Scan(&eventID, &sid, &eventType, &timestampMs, &x, &y, &target, &payload, &createdAt)
+			if err != nil {
+				continue
+			}
+
+			ev := map[string]interface{}{
+				"id":           eventID,
+				"session_id":   sid,
+				"event_type":   eventType,
+				"timestamp_ms": timestampMs,
+				"x":            x,
+				"y":            y,
+				"target":       target,
+				"payload":      payload,
+				"created_at":   createdAt,
+			}
+			events = append(events, ev)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"session": s,
+			"events":  events,
+		})
+	}
+}

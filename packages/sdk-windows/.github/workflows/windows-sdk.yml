@@ -1,0 +1,42 @@
+name: Windows SDK Build
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Install Rust toolchain
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+      
+      # Install Windows target for Rust
+      - name: Add Windows target
+        run: rustup target add x86_64-pc-windows-msvc
+      
+      # Build Privacy Engine
+      - name: Build Privacy Engine
+        run: |
+          cd services/privacy-engine
+          cargo build --release --target x86_64-pc-windows-msvc
+      
+      # Setup MSBuild
+      - uses: microsoft/setup-msbuild@v2
+      
+      # Configure and build Windows SDK
+      - name: Configure Windows SDK
+        run: |
+          cd packages/sdk-windows
+          cmake -B build -S . -A x64 `
+            -DCHRONOSCOPE_PRIVACY_LIB="${{ github.workspace }}/services/privacy-engine/target/x86_64-pc-windows-msvc/release/chronoscope_privacy.lib"
+      
+      - name: Build Windows SDK
+        run: |
+          cd packages/sdk-windows
+          cmake --build build --config Release
+      
+      # Run tests
+      - name: Test
+        run: |
+          cd packages/sdk-windows/build
+          ctest -C Release --output-on-failure

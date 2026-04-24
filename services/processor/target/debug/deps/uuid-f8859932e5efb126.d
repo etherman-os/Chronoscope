@@ -1,0 +1,13 @@
+/home/etherman/Projects/Chronoscope/services/processor/target/debug/deps/uuid-f8859932e5efb126.d: /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/lib.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/macros.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/builder.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/error.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/non_nil.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/parser.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/fmt.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/timestamp.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/external.rs
+
+/home/etherman/Projects/Chronoscope/services/processor/target/debug/deps/libuuid-f8859932e5efb126.rmeta: /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/lib.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/macros.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/builder.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/error.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/non_nil.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/parser.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/fmt.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/timestamp.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/external.rs
+
+/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/lib.rs:
+/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/macros.rs:
+/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/builder.rs:
+/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/error.rs:
+/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/non_nil.rs:
+/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/parser.rs:
+/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/fmt.rs:
+/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/timestamp.rs:
+/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/uuid-1.23.1/src/external.rs:

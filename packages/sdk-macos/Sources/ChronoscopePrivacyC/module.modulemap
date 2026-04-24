@@ -1,0 +1,5 @@
+module ChronoscopePrivacyC {
+    header "chronoscope_privacy.h"
+    link "chronoscope_privacy"
+    export *
+}

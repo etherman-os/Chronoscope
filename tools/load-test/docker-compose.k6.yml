@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  k6:
+    image: grafana/k6:latest
+    volumes:
+      - ./tools/load-test:/tests
+    command: run /tests/load-test.js
+    environment:
+      - BASE_URL=http://ingestion:8080/v1
+      - API_KEY=dev-api-key-12345
+    network_mode: host

@@ -1,0 +1,250 @@
+openapi: 3.0.3
+info:
+  title: Chronoscope Ingestion API
+  description: API for ingesting session replay capture data
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080/v1
+    description: Local development server
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /sessions/init:
+    post:
+      summary: Initialize capture session
+      operationId: initSession
+      tags:
+        - Sessions
+      parameters:
+        - in: header
+          name: X-API-Key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+                - capture_mode
+              properties:
+                user_id:
+                  type: string
+                capture_mode:
+                  type: string
+                  enum: [video, events, hybrid]
+                metadata:
+                  type: object
+      responses:
+        '201':
+          description: Session initialized successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session_id:
+                    type: string
+                    format: uuid
+                  upload_url:
+                    type: string
+                  token:
+                    type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+
+  /sessions/{session_id}/chunks:
+    post:
+      summary: Upload video chunk
+      operationId: uploadChunk
+      tags:
+        - Sessions
+      parameters:
+        - in: header
+          name: X-API-Key
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: X-Chunk-Index
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                chunk:
+                  type: string
+                  format: binary
+                timestamp_start:
+                  type: integer
+                timestamp_end:
+                  type: integer
+      responses:
+        '200':
+          description: Chunk received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                  next_chunk:
+                    type: integer
+
+  /sessions/{session_id}/events:
+    post:
+      summary: Upload event batch
+      operationId: uploadEvents
+      tags:
+        - Sessions
+      parameters:
+        - in: header
+          name: X-API-Key
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                events:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      event_type:
+                        type: string
+                      timestamp_ms:
+                        type: integer
+                      x:
+                        type: integer
+                      y:
+                        type: integer
+                      target:
+                        type: string
+                      payload:
+                        type: string
+      responses:
+        '200':
+          description: Events received
+
+  /sessions/{session_id}/complete:
+    post:
+      summary: Finalize session
+      operationId: completeSession
+      tags:
+        - Sessions
+      parameters:
+        - in: header
+          name: X-API-Key
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session completed
+
+  /sessions:
+    get:
+      summary: List sessions
+      operationId: listSessions
+      tags:
+        - Sessions
+      parameters:
+        - in: query
+          name: project_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      type: object
+
+  /sessions/{session_id}:
+    get:
+      summary: Get session details
+      operationId: getSession
+      tags:
+        - Sessions
+      parameters:
+        - in: path
+          name: session_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  session:
+                    type: object
+                  events:
+                    type: array
+                    items:
+                      type: object
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
