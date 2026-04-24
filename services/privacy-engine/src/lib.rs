@@ -67,8 +67,9 @@ impl PrivacyEngine {
 
     pub fn process_text(&mut self, text: &str) -> String {
         let detections = detector::scan_text(text, &self.config);
+        let merged = merge_overlapping_detections(detections);
         let mut result = text.to_string();
-        for detection in detections.iter().rev() {
+        for detection in merged.iter().rev() {
             let replacement = match &self.config.redaction_mode {
                 RedactionMode::Blur => "[REDACTED]".to_string(),
                 RedactionMode::Blackout => "█".repeat(detection.end - detection.start),
@@ -83,6 +84,23 @@ impl PrivacyEngine {
     pub fn check_consent(&self, user_id: &str) -> ConsentStatus {
         consent::get_status(user_id)
     }
+}
+
+fn merge_overlapping_detections(mut detections: Vec<detector::Detection>) -> Vec<detector::Detection> {
+    if detections.is_empty() {
+        return detections;
+    }
+    detections.sort_by_key(|d| d.start);
+    let mut merged: Vec<detector::Detection> = Vec::new();
+    for d in detections {
+        match merged.last_mut() {
+            Some(last) if d.start < last.end => {
+                last.end = last.end.max(d.end);
+            }
+            _ => merged.push(d),
+        }
+    }
+    merged
 }
 
 #[derive(Debug, Clone)]
