@@ -21,10 +21,23 @@ async fn main() -> anyhow::Result<()> {
     // Spawn queue listener (Redis)
     tokio::spawn(queue::queue_listener(config.clone(), tx));
 
-    // Process sessions
-    while let Some(session_id) = rx.recv().await {
-        if let Err(e) = process_session(&config, &session_id).await {
-            error!("Failed to process session {}: {}", session_id, e);
+    // Process sessions with graceful shutdown
+    let mut shutdown = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    loop {
+        tokio::select! {
+            Some(session_id) = rx.recv() => {
+                if let Err(e) = process_session(&config, &session_id).await {
+                    error!("Failed to process session {}: {}", session_id, e);
+                }
+            }
+            _ = tokio::signal::ctrl_c() => {
+                info!("Received Ctrl+C, shutting down...");
+                break;
+            }
+            _ = shutdown.recv() => {
+                info!("Received SIGTERM, shutting down...");
+                break;
+            }
         }
     }
 
