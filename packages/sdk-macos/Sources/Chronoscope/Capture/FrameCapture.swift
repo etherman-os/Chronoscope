@@ -35,7 +35,7 @@ public actor FrameCapture: NSObject {
             configuration.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(frameRate))
             configuration.queueDepth = 3
 
-            let newStream = SCStream(filter: filter, configuration: configuration, delegate: nil)
+            let newStream = SCStream(filter: filter, configuration: configuration, delegate: self)
             try newStream.addStreamOutput(self, type: .screen, sampleHandlerQueue: .global(qos: .userInitiated))
             try await newStream.startCapture()
             self.stream = newStream
@@ -53,6 +53,12 @@ public actor FrameCapture: NSObject {
     }
 }
 
+extension FrameCapture: SCStreamDelegate {
+    nonisolated public func stream(_ stream: SCStream, didStopWithError error: Error) {
+        print("SCStream stopped with error: \(error)")
+    }
+}
+
 extension FrameCapture: SCStreamOutput {
     nonisolated public func stream(
         _ stream: SCStream,
@@ -62,24 +68,40 @@ extension FrameCapture: SCStreamOutput {
         guard outputType == .screen else { return }
         guard let pixelBuffer = sampleBuffer.imageBuffer else { return }
 
-        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
-        let nsImage = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
 
-        guard let tiffData = nsImage.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData),
-              let jpegData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.7]) else {
-            return
-        }
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else { return }
+        let width = Int(CVPixelBufferGetWidth(pixelBuffer))
+        let height = Int(CVPixelBufferGetHeight(pixelBuffer))
+        let stride = Int(CVPixelBufferGetBytesPerRow(pixelBuffer))
+        let frameSize = height * stride
 
-        // TODO: Apply privacy filtering to raw pixel buffer before JPEG encoding.
-        // PrivacyEngine.processFrame requires raw RGBA data, but this pipeline
-        // currently produces JPEG. Modifying the full frame handler pipeline is
-        // complex and deferred post-MVP.
+        var frameData = Data(bytes: baseAddress, count: frameSize)
 
-        Task { [jpegData] in
+        Task {
+            await privacyEngine?.processFrame(&frameData, width: UInt32(width), height: UInt32(height), stride: UInt32(stride))
+            guard let jpegData = encodeToJPEG(rgbaData: frameData, width: width, height: height, stride: stride) else { return }
             await self.frameHandler?(jpegData)
         }
     }
+}
+
+private nonisolated func encodeToJPEG(rgbaData: Data, width: Int, height: Int, stride: Int) -> Data? {
+    guard let rep = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: width,
+        pixelsHigh: height,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: stride,
+        bitsPerPixel: 32
+    ) else {
+        return nil
+    }
+    rgbaData.copyBytes(to: rep.bitmapData!, count: rgbaData.count)
+    return rep.representation(using: .jpeg, properties: [.compressionFactor: 0.7])
 }
