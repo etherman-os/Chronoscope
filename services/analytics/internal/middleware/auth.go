@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -16,8 +18,11 @@ func APIKeyAuth(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		h := sha256.Sum256([]byte(apiKey))
+		hashHex := hex.EncodeToString(h[:])
+
 		var projectID string
-		err := db.QueryRow("SELECT id FROM projects WHERE api_key_hash = $1", apiKey).Scan(&projectID)
+		err := db.QueryRow("SELECT id FROM projects WHERE api_key_hash = $1", hashHex).Scan(&projectID)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API key"})
