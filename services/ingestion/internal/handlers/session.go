@@ -84,14 +84,15 @@ func InitSession(cfg *config.Config) gin.HandlerFunc {
 // ListSessions returns paginated sessions for a project.
 func ListSessions(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		projectID := c.Query("project_id")
-		if projectID == "" {
-			if pid, ok := c.Get("project_id"); ok {
-				projectID = pid.(string)
-			} else {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "project_id is required"})
-				return
-			}
+		projectID, ok := c.Get("project_id")
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing project context"})
+			return
+		}
+		pid, ok := projectID.(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid project context"})
+			return
 		}
 
 		limit := 20
@@ -109,7 +110,7 @@ func ListSessions(cfg *config.Config) gin.HandlerFunc {
 
 		rows, err := cfg.DB.Query(
 			`SELECT id, project_id, user_id, duration_ms, video_path, event_count, error_count, metadata, status, created_at, completed_at FROM sessions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
-			projectID, limit, offset,
+			pid, limit, offset,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list sessions"})
