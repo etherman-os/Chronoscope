@@ -30,7 +30,9 @@ public actor CaptureSession {
         )
 
         if config.captureMode != .events {
-            let privacyEngine = PrivacyEngine()
+            guard let privacyEngine = PrivacyEngine() else {
+                throw ChronoscopeError.sessionInitFailed("Failed to initialize privacy engine")
+            }
             self.privacyEngine = privacyEngine
             self.frameCapture = FrameCapture(frameRate: config.frameRate, privacyEngine: privacyEngine)
             await frameCapture?.start { [weak self] data in

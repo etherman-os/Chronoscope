@@ -4,9 +4,11 @@ import ChronoscopePrivacyC
 public actor PrivacyEngine {
     private var engine: OpaquePointer?
     
-    public init(config: PrivacyConfig = PrivacyConfig()) {
-        let jsonData = try! JSONEncoder().encode(config)
-        let jsonString = String(data: jsonData, encoding: .utf8)!
+    public init?(config: PrivacyConfig = PrivacyConfig()) {
+        guard let jsonData = try? JSONEncoder().encode(config),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            return nil
+        }
         engine = jsonString.withCString { ptr in
             chronoscope_privacy_init(ptr)
         }
