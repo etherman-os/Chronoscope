@@ -6,7 +6,10 @@ interface SessionListProps {
   onSelect: (session: Session) => void;
 }
 
-const PROJECT_ID = '22222222-2222-2222-2222-222222222222';
+const PROJECT_ID = import.meta.env.VITE_PROJECT_ID || '';
+if (!PROJECT_ID) {
+  throw new Error('VITE_PROJECT_ID is required');
+}
 
 export const SessionList: React.FC<SessionListProps> = ({ onSelect }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
