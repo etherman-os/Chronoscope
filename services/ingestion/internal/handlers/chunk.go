@@ -14,6 +14,16 @@ import (
 func UploadChunk(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sessionID := c.Param("id")
+
+		authenticatedProjectID, _ := c.Get("project_id")
+		authPID, _ := authenticatedProjectID.(string)
+		var ownerProjectID string
+		err := cfg.DB.QueryRow(`SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&ownerProjectID)
+		if err != nil || ownerProjectID != authPID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "session does not belong to project"})
+			return
+		}
+
 		chunkIndexStr := c.GetHeader("X-Chunk-Index")
 		if chunkIndexStr == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "X-Chunk-Index header is required"})
