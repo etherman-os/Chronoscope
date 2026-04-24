@@ -76,15 +76,22 @@ pub fn scan_text(text: &str, config: &PrivacyConfig) -> Vec<Detection> {
     }
 
     for pattern in &config.custom_patterns {
-        if let Ok(re) = Regex::new(pattern) {
-            for mat in re.find_iter(text) {
-                detections.push(Detection {
-                    start: mat.start(),
-                    end: mat.end(),
-                    detection_type: DetectionType::Custom(pattern.clone()),
-                    confidence: 0.90,
-                });
-            }
+        if pattern.len() > 10_000 {
+            continue;
+        }
+        let re = match regex::RegexBuilder::new(pattern)
+            .size_limit(1 << 20)
+            .build() {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        for mat in re.find_iter(text) {
+            detections.push(Detection {
+                start: mat.start(),
+                end: mat.end(),
+                detection_type: DetectionType::Custom(pattern.clone()),
+                confidence: 0.90,
+            });
         }
     }
 
