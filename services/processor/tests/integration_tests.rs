@@ -336,9 +336,11 @@ async fn test_full_pipeline() {
     });
 
     // Push a message
-    let mut con = config.redis_client.clone();
-    redis::cmd("LPUSH")
+    let mut con = config.redis_client.get_multiplexed_async_connection().await.unwrap();
+    redis::cmd("XADD")
         .arg("chronoscope:process_queue")
+        .arg("*")
+        .arg("session_id")
         .arg("queued_session_123")
         .query_async::<_, ()>(&mut con)
         .await

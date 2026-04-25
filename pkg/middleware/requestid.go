@@ -3,6 +3,7 @@ package middleware
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -10,7 +11,9 @@ import (
 
 func generateID() string {
 	var buf [8]byte
-	rand.Read(buf[:])
+	if _, err := rand.Read(buf[:]); err != nil {
+		return fmt.Sprintf("%x", time.Now().UnixNano())
+	}
 	return hex.EncodeToString(time.Now().AppendFormat(buf[:], "20060102150405"))
 }
 

@@ -18,10 +18,7 @@ let package = Package(
     targets: [
         .systemLibrary(
             name: "ChronoscopePrivacyC",
-            path: "Sources/ChronoscopePrivacyC",
-            linkerSettings: [
-                .linkedLibrary("chronoscope_privacy")
-            ]
+            path: "Sources/ChronoscopePrivacyC"
         ),
         .target(
             name: "Chronoscope",
@@ -29,7 +26,10 @@ let package = Package(
                 .product(name: "SwiftProtobuf", package: "swift-protobuf"),
                 "ChronoscopePrivacyC"
             ],
-            path: "Sources/Chronoscope"
+            path: "Sources/Chronoscope",
+            linkerSettings: [
+                .linkedLibrary("chronoscope_privacy")
+            ]
         ),
         .testTarget(
             name: "ChronoscopeTests",
