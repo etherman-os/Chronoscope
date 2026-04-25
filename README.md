@@ -1,6 +1,6 @@
 <div align="center">
 
-> ⚠️ This project was built with heavy AI assistance (OpenCode / Kimi K2.6).
+> ⚠️ This project was built with heavy AI assistance using multiple coding agents.
 > I directed the architecture and reviewed all changes, but did not write most of the code manually.
 > Feedback and contributions welcome.
 
