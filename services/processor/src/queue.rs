@@ -8,6 +8,9 @@ const STREAM_KEY: &str = "chronoscope:process_queue";
 const GROUP_NAME: &str = "chronoscope-processor";
 const CONSUMER_NAME: &str = "processor-1";
 
+type StreamEntry = (String, Vec<(String, Vec<(String, String)>)>);
+type StreamResult = Option<Vec<StreamEntry>>;
+
 async fn create_consumer_group(con: &mut MultiplexedConnection) -> Result<()> {
     let result: redis::RedisResult<()> = redis::cmd("XGROUP")
         .arg("CREATE")
@@ -45,9 +48,7 @@ pub async fn queue_listener(
     let mut backoff_secs = 5u64;
 
     loop {
-        let result: redis::RedisResult<
-            Option<Vec<(String, Vec<(String, Vec<(String, String)>)>)>>,
-        > = redis::cmd("XREADGROUP")
+        let result: redis::RedisResult<StreamResult> = redis::cmd("XREADGROUP")
             .arg("GROUP")
             .arg(GROUP_NAME)
             .arg(CONSUMER_NAME)

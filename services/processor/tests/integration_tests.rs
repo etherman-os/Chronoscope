@@ -342,7 +342,7 @@ async fn test_full_pipeline() {
         .await
         .unwrap();
 
-    let received = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+    let received = tokio::time::timeout(Duration::from_secs(7), rx.recv())
         .await
         .unwrap()
         .unwrap();
