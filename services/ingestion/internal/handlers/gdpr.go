@@ -162,13 +162,13 @@ func DeleteUserData(cfg *config.Config) gin.HandlerFunc {
 
 			res, err := tx.ExecContext(ctx, `DELETE FROM events WHERE session_id = $1`, sid)
 			if err != nil {
-				tx.Rollback()
+				_ = tx.Rollback() //nolint:errcheck
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete events"})
 				return
 			}
 			evCount, err := res.RowsAffected()
 			if err != nil {
-				tx.Rollback()
+				_ = tx.Rollback() //nolint:errcheck
 				log.Printf("rows affected error: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get deletion count"})
 				return
@@ -176,7 +176,7 @@ func DeleteUserData(cfg *config.Config) gin.HandlerFunc {
 
 			_, err = tx.ExecContext(ctx, `DELETE FROM sessions WHERE id = $1`, sid)
 			if err != nil {
-				tx.Rollback()
+				_ = tx.Rollback() //nolint:errcheck
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete session"})
 				return
 			}

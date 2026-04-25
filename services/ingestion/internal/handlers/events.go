@@ -68,7 +68,7 @@ func UploadEvents(cfg *config.Config) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transaction"})
 			return
 		}
-		defer tx.Rollback()
+		defer func() { _ = tx.Rollback() }() //nolint:errcheck
 
 		stmt, err := tx.PrepareContext(ctx,
 			`INSERT INTO events (session_id, event_type, timestamp_ms, x, y, target, payload) VALUES ($1, $2, $3, $4, $5, $6, $7)`,

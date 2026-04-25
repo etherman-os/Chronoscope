@@ -160,7 +160,7 @@ func TestUploadChunk(t *testing.T) {
 		var b bytes.Buffer
 		writer := multipart.NewWriter(&b)
 		part, _ := writer.CreateFormFile("chunk", "chunk.jpg")
-		part.Write([]byte("fake-image-data"))
+		_, _ = part.Write([]byte("fake-image-data"))
 		writer.Close()
 
 		w := httptest.NewRecorder()

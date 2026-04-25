@@ -243,7 +243,7 @@ func TestChunkUploadValidation(t *testing.T) {
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	part, _ := writer.CreateFormFile("chunk", "chunk.jpg")
-	part.Write([]byte("fake-image-data"))
+	_, _ = part.Write([]byte("fake-image-data"))
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/v1/sessions/"+sessionID+"/chunks", &b)
