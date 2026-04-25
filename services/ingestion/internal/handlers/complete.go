@@ -8,6 +8,7 @@ import (
 
 	"github.com/chronoscope/ingestion/internal/config"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 // CompleteSession marks a session as completed.
@@ -22,9 +23,15 @@ func CompleteSession(cfg *config.Config) gin.HandlerFunc {
 		defer cancel()
 
 		var ownerProjectID string
-		err := cfg.DB.QueryRowContext(ctx, `SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&ownerProjectID)
+		var status string
+		err := cfg.DB.QueryRowContext(ctx, `SELECT project_id, status FROM sessions WHERE id = $1`, sessionID).Scan(&ownerProjectID, &status)
 		if err != nil || ownerProjectID != authPID {
 			c.JSON(http.StatusForbidden, gin.H{"error": "session does not belong to project"})
+			return
+		}
+
+		if status == "completed" || status == "ready" {
+			c.JSON(http.StatusOK, gin.H{"status": status})
 			return
 		}
 
@@ -39,8 +46,19 @@ func CompleteSession(cfg *config.Config) gin.HandlerFunc {
 
 		var projectID string
 		if err := cfg.DB.QueryRowContext(ctx, `SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&projectID); err == nil {
-			if err := LogAudit(cfg, projectID, "session_completed", "", map[string]interface{}{"session_id": sessionID}); err != nil {
+			if err := LogAudit(ctx, cfg, projectID, "session_completed", "", map[string]interface{}{"session_id": sessionID}); err != nil {
 				log.Printf("audit log failed: %v", err)
+			}
+		}
+
+		if cfg.Redis != nil {
+			if err := cfg.Redis.XAdd(ctx, &redis.XAddArgs{
+			Stream: "chronoscope:process_queue",
+			Values: map[string]interface{}{"session_id": sessionID},
+		}).Err(); err != nil {
+				log.Printf("failed to enqueue session for processing: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to enqueue session"})
+				return
 			}
 		}
 

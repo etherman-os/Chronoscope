@@ -11,14 +11,17 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/redis/go-redis/v9"
 )
 
 // Config holds application configuration and clients.
 type Config struct {
-	ServerAddr string
-	DB         *sql.DB
-	Minio      *minio.Client
-	BucketName string
+	ServerAddr          string
+	DB                  *sql.DB
+	Minio               *minio.Client
+	BucketName          string
+	ProcessedBucketName string
+	Redis               *redis.Client
 }
 
 // Load reads environment variables, initializes the database and MinIO clients,
@@ -76,7 +79,10 @@ func Load() *Config {
 		log.Fatalf("Failed to create MinIO client: %v", err)
 	}
 
-	bucketName := "chronoscope-sessions"
+	bucketName := os.Getenv("S3_BUCKET")
+	if bucketName == "" {
+		bucketName = "chronoscope-sessions"
+	}
 	exists, err := minioClient.BucketExists(context.Background(), bucketName)
 	if err != nil {
 		log.Fatalf("Failed to check bucket existence: %v", err)
@@ -88,10 +94,44 @@ func Load() *Config {
 		}
 	}
 
+	processedBucketName := os.Getenv("S3_PROCESSED_BUCKET")
+	if processedBucketName == "" {
+		processedBucketName = "chronoscope-processed"
+	}
+	exists, err = minioClient.BucketExists(context.Background(), processedBucketName)
+	if err != nil {
+		log.Fatalf("Failed to check processed bucket existence: %v", err)
+	}
+	if !exists {
+		err = minioClient.MakeBucket(context.Background(), processedBucketName, minio.MakeBucketOptions{})
+		if err != nil {
+			log.Fatalf("Failed to create processed bucket: %v", err)
+		}
+	}
+
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisURL = "redis://localhost:6379"
+	}
+
+	redisOpts, err := redis.ParseURL(redisURL)
+	if err != nil {
+		log.Fatalf("Failed to parse REDIS_URL: %v", err)
+	}
+	redisClient := redis.NewClient(redisOpts)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+
 	return &Config{
-		ServerAddr: serverAddr,
-		DB:         db,
-		Minio:      minioClient,
-		BucketName: bucketName,
+		ServerAddr:          serverAddr,
+		DB:                  db,
+		Minio:               minioClient,
+		BucketName:          bucketName,
+		ProcessedBucketName: processedBucketName,
+		Redis:               redisClient,
 	}
 }

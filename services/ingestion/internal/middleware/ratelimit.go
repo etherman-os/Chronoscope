@@ -6,17 +6,30 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
-// rateLimiter implements a simple per-key token bucket rate limiter
-// with automatic bucket cleanup to prevent memory leaks.
+var rateLimitScript = redis.NewScript(`
+local key = KEYS[1]
+local limit = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local current = redis.call("INCR", key)
+if current == 1 then
+    redis.call("EXPIRE", key, window)
+end
+if current > limit then
+    return 0
+end
+return 1
+`)
+
 type rateLimiter struct {
-	mu       sync.RWMutex
+	mu       sync.Mutex
 	buckets  map[string]*bucket
-	rate     int           // tokens added per interval
-	interval time.Duration // interval between token adds
-	burst    int           // max bucket size
-	ttl      time.Duration // bucket lifetime after last access
+	rate     int
+	interval time.Duration
+	burst    int
+	ttl      time.Duration
 }
 
 type bucket struct {
@@ -32,12 +45,10 @@ func newRateLimiter(rate int, interval time.Duration, burst int) *rateLimiter {
 		burst:    burst,
 		ttl:      1 * time.Hour,
 	}
-	// Start background cleanup goroutine
 	go rl.cleanup()
 	return rl
 }
 
-// cleanup removes stale buckets every 10 minutes to prevent memory leaks.
 func (rl *rateLimiter) cleanup() {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
@@ -68,7 +79,7 @@ func (rl *rateLimiter) allow(key string) bool {
 	refill := int(elapsed / rl.interval)
 
 	if refill > 0 {
-		b.tokens = min(b.tokens+refill, rl.burst)
+		b.tokens = minInt(b.tokens+refill, rl.burst)
 		b.lastCheck = now
 	}
 
@@ -79,22 +90,43 @@ func (rl *rateLimiter) allow(key string) bool {
 	return false
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-// RateLimit creates a middleware that limits requests per API key.
-func RateLimit(requests int, interval time.Duration) gin.HandlerFunc {
-	rl := newRateLimiter(requests, interval, requests)
+func RateLimit(requests int, interval time.Duration, redisClient *redis.Client) gin.HandlerFunc {
+	if redisClient == nil {
+		rl := newRateLimiter(requests, interval, requests)
+		return func(c *gin.Context) {
+			key := c.GetHeader("X-API-Key")
+			if key == "" {
+				key = c.ClientIP()
+			}
+			if !rl.allow(key) {
+				c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+				return
+			}
+			c.Next()
+		}
+	}
+
+	windowSecs := int(interval.Seconds())
+	if windowSecs < 1 {
+		windowSecs = 60
+	}
+
 	return func(c *gin.Context) {
 		key := c.GetHeader("X-API-Key")
 		if key == "" {
 			key = c.ClientIP()
 		}
-		if !rl.allow(key) {
+		redisKey := "ratelimit:" + key
+
+		allowed, err := rateLimitScript.Run(c.Request.Context(), redisClient, []string{redisKey}, requests, windowSecs).Bool()
+		if err != nil || !allowed {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
 			return
 		}

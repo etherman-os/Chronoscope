@@ -54,6 +54,11 @@ func GetHeatmap(cfg *config.Config) gin.HandlerFunc {
 			}
 			points = append(points, p)
 		}
+		if err := rows.Err(); err != nil {
+			log.Printf("rows error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read heatmap"})
+			return
+		}
 
 		c.JSON(http.StatusOK, gin.H{
 			"project_id": projectID,

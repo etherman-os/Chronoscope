@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/chronoscope/ingestion/internal/config"
@@ -12,6 +13,7 @@ import (
 )
 
 const maxEventBatchSize = 1000
+const maxEventPayloadSize = 64 << 10 // 64 KiB
 
 type uploadEventsRequest struct {
 	Events []struct {
@@ -42,7 +44,8 @@ func UploadEvents(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		if c.GetHeader("Content-Type") != "application/json" {
+		contentType := c.GetHeader("Content-Type")
+		if !strings.HasPrefix(contentType, "application/json") {
 			c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "Content-Type must be application/json"})
 			return
 		}
@@ -63,12 +66,19 @@ func UploadEvents(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
+		for _, ev := range req.Events {
+			if len(ev.Payload) > maxEventPayloadSize {
+				c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "event payload exceeds maximum size"})
+				return
+			}
+		}
+
 		tx, err := cfg.DB.BeginTx(ctx, nil)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transaction"})
 			return
 		}
-		defer func() { _ = tx.Rollback() }() //nolint:errcheck
+		defer func() { _ = tx.Rollback() }()
 
 		stmt, err := tx.PrepareContext(ctx,
 			`INSERT INTO events (session_id, event_type, timestamp_ms, x, y, target, payload) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -111,7 +121,7 @@ func UploadEvents(cfg *config.Config) gin.HandlerFunc {
 
 		var projectID string
 		if err := cfg.DB.QueryRowContext(ctx, `SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&projectID); err == nil {
-			if err := LogAudit(cfg, projectID, "events_uploaded", "", map[string]interface{}{"session_id": sessionID, "event_count": len(req.Events)}); err != nil {
+			if err := LogAudit(ctx, cfg, projectID, "events_uploaded", "", map[string]interface{}{"session_id": sessionID, "event_count": len(req.Events)}); err != nil {
 				log.Printf("audit log failed: %v", err)
 			}
 		}

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"os"
@@ -8,12 +9,14 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 )
 
 // Config holds application configuration and database connection.
 type Config struct {
 	ServerAddr string
 	DB         *sql.DB
+	Redis      *redis.Client
 }
 
 // Load reads environment variables and initializes the PostgreSQL connection.
@@ -52,8 +55,24 @@ func Load() *Config {
 	db.SetMaxIdleConns(maxIdleConns)
 	db.SetConnMaxLifetime(time.Duration(connMaxLifetime) * time.Minute)
 
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisURL = "redis://localhost:6379"
+	}
+	redisOpts, err := redis.ParseURL(redisURL)
+	if err != nil {
+		log.Fatalf("Failed to parse REDIS_URL: %v", err)
+	}
+	redisClient := redis.NewClient(redisOpts)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+
 	return &Config{
 		ServerAddr: serverAddr,
 		DB:         db,
+		Redis:      redisClient,
 	}
 }

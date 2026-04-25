@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"time"
 
@@ -27,8 +28,15 @@ func GetFunnel(cfg *config.Config) gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
 		defer cancel()
 
+		tx, err := cfg.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transaction"})
+			return
+		}
+		defer func() { _ = tx.Rollback() }()
+
 		var totalSessions int
-		err := cfg.DB.QueryRowContext(ctx,
+		err = tx.QueryRowContext(ctx,
 			"SELECT COUNT(*) FROM sessions WHERE project_id = $1",
 			projectID,
 		).Scan(&totalSessions)
@@ -38,7 +46,7 @@ func GetFunnel(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		var sessionsWithEvents int
-		err = cfg.DB.QueryRowContext(ctx, `
+		err = tx.QueryRowContext(ctx, `
 			SELECT COUNT(DISTINCT s.id)
 			FROM sessions s
 			JOIN events e ON s.id = e.session_id
@@ -50,7 +58,7 @@ func GetFunnel(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		var sessionsWithChunks int
-		err = cfg.DB.QueryRowContext(ctx, `
+		err = tx.QueryRowContext(ctx, `
 			SELECT COUNT(*) FROM sessions
 			WHERE project_id = $1 AND video_path IS NOT NULL AND video_path != ''
 		`, projectID).Scan(&sessionsWithChunks)
@@ -60,12 +68,17 @@ func GetFunnel(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		var completedSessions int
-		err = cfg.DB.QueryRowContext(ctx,
+		err = tx.QueryRowContext(ctx,
 			"SELECT COUNT(*) FROM sessions WHERE project_id = $1 AND status = 'completed'",
 			projectID,
 		).Scan(&completedSessions)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query completed sessions"})
+			return
+		}
+
+		if err := tx.Commit(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to commit transaction"})
 			return
 		}
 

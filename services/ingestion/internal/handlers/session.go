@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/chronoscope/ingestion/internal/config"
@@ -17,6 +18,7 @@ import (
 
 const (
 	defaultLimit = 20
+	maxLimit     = 100
 )
 
 type initSessionRequest struct {
@@ -34,7 +36,8 @@ type initSessionResponse struct {
 // InitSession creates a new capture session.
 func InitSession(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.GetHeader("Content-Type") != "application/json" {
+		contentType := c.GetHeader("Content-Type")
+		if !strings.HasPrefix(contentType, "application/json") {
 			c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "Content-Type must be application/json"})
 			return
 		}
@@ -45,7 +48,11 @@ func InitSession(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		projectID, _ := c.Get("project_id")
+		projectID, ok := c.Get("project_id")
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing project context"})
+			return
+		}
 		sessionID := uuid.New().String()
 
 		// Merge capture_mode into metadata for storage.
@@ -65,13 +72,12 @@ func InitSession(cfg *config.Config) gin.HandlerFunc {
 		defer cancel()
 
 		_, err = cfg.DB.ExecContext(ctx,
-			`INSERT INTO sessions (id, project_id, user_id, status, metadata, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+			`INSERT INTO sessions (id, project_id, user_id, status, metadata, created_at) VALUES ($1, $2, $3, $4, $5, NOW())`,
 			sessionID,
 			projectID,
 			req.UserID,
 			"capturing",
 			metadataJSON,
-			time.Now(),
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create session"})
@@ -79,7 +85,7 @@ func InitSession(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		if pid, ok := projectID.(string); ok {
-			if err := LogAudit(cfg, pid, "session_initiated", req.UserID, map[string]interface{}{"session_id": sessionID}); err != nil {
+			if err := LogAudit(ctx, cfg, pid, "session_initiated", req.UserID, map[string]interface{}{"session_id": sessionID}); err != nil {
 				log.Printf("audit log failed: %v", err)
 			}
 		}
@@ -115,6 +121,9 @@ func ListSessions(cfg *config.Config) gin.HandlerFunc {
 				limit = n
 			}
 		}
+		if limit > maxLimit {
+			limit = maxLimit
+		}
 		if o := c.Query("offset"); o != "" {
 			if n, err := strconv.Atoi(o); err == nil && n >= 0 {
 				offset = n
@@ -143,6 +152,11 @@ func ListSessions(cfg *config.Config) gin.HandlerFunc {
 				continue
 			}
 			sessions = append(sessions, s)
+		}
+		if err := rows.Err(); err != nil {
+			log.Printf("rows error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read sessions"})
+			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{"sessions": sessions})
@@ -179,9 +193,25 @@ func GetSession(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
+		eventLimit := defaultLimit
+		eventOffset := 0
+		if l := c.Query("event_limit"); l != "" {
+			if n, err := strconv.Atoi(l); err == nil && n > 0 {
+				eventLimit = n
+			}
+		}
+		if eventLimit > maxLimit {
+			eventLimit = maxLimit
+		}
+		if o := c.Query("event_offset"); o != "" {
+			if n, err := strconv.Atoi(o); err == nil && n >= 0 {
+				eventOffset = n
+			}
+		}
+
 		rows, err := cfg.DB.QueryContext(ctx,
-			`SELECT id, session_id, event_type, timestamp_ms, x, y, target, payload, created_at FROM events WHERE session_id = $1 ORDER BY timestamp_ms ASC`,
-			sessionID,
+			`SELECT id, session_id, event_type, timestamp_ms, x, y, target, payload, created_at FROM events WHERE session_id = $1 ORDER BY timestamp_ms ASC LIMIT $2 OFFSET $3`,
+			sessionID, eventLimit, eventOffset,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get events"})
@@ -210,14 +240,19 @@ func GetSession(cfg *config.Config) gin.HandlerFunc {
 				"id":           eventID,
 				"session_id":   sid,
 				"event_type":   eventType,
-				"timestamp_ms": timestampMs,
-				"x":            x,
-				"y":            y,
-				"target":       target,
-				"payload":      payload,
+				"timestamp_ms": timestampMs.Int64,
+				"x":            x.Int32,
+				"y":            y.Int32,
+				"target":       target.String,
+				"payload":      payload.String,
 				"created_at":   createdAt,
 			}
 			events = append(events, ev)
+		}
+		if err := rows.Err(); err != nil {
+			log.Printf("rows error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read events"})
+			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{
