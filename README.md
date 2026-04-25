@@ -8,9 +8,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/etherman-os/chronoscope)](https://goreportcard.com/report/github.com/etherman-os/chronoscope)
 [![CI Status](https://github.com/etherman-os/chronoscope/actions/workflows/ci.yml/badge.svg)](https://github.com/etherman-os/chronoscope/actions)
 [![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/etherman-os/chronoscope/blob/main/VERSION)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://github.com/etherman-os/chronoscope/tree/main/docker)
 
-[Quick Start](#quick-start) • [Features](#features) • [Architecture](#architecture) • [Docs](docs/) • [Contributing](docs/CONTRIBUTING.md)
+[Quick Start](#quick-start) • [Features](#features) • [Architecture](#architecture) • [Docs](docs/)
 
 </div>
 
@@ -23,7 +22,7 @@ Chronoscope is a **session replay infrastructure** for native desktop applicatio
 Built for teams who:
 - Ship **macOS, Windows, or Linux** desktop apps
 - Need to debug "how did the user get here?" support tickets
-- Want **FullStory/LogRocket-like insights** without sending screen recordings to a third-party cloud
+- Want session replay insights without sending screen recordings to a third-party cloud
 - Care about **data privacy** (GDPR, HIPAA, enterprise security)
 
 > Think of it as a DVR for your desktop app. You press "record" via SDK, and your support team watches the playback later.
@@ -33,27 +32,14 @@ Built for teams who:
 ## Features
 
 - **Screen & Event Capture** — Frame-by-frame video + click/scroll/keyboard event tracking via native SDKs
-- **Cross-Platform SDKs** — Swift (macOS/ScreenCaptureKit), C++20 (Windows/WinRT), Rust (Linux/PipeWire & X11)
+- **Cross-Platform SDKs** — Swift (macOS/ScreenCaptureKit), C++20 (Windows/WinRT Graphics Capture), Rust (Linux/PipeWire & X11)
 - **Privacy-First** — Automatic PII redaction (credit cards, emails, passwords) via on-device Rust privacy engine
 - **Self-Hosted** — Runs entirely on your infrastructure. PostgreSQL + Redis + MinIO. No external SaaS dependency.
 - **Real-Time Processing** — FFmpeg-powered video processor transcodes, deduplicates frames, and applies redactions asynchronously
-- **Replay Dashboard** — React-based player with timeline scrubbing, event overlay, and heatmap visualization
+- **Replay Dashboard** — React-based player with timeline scrubbing and event overlay
 - **Analytics API** — Pre-computed heatmaps, funnel stages, and session statistics
 - **GDPR Ready** — User data export, right-to-be-forgotten deletion, and audit logging endpoints
 - **Production Hardened** — SHA-256 API key hashing, rate limiting, CORS restrictions, input validation, and CSP headers
-
----
-
-## Why Self-Hosted?
-
-| | **Chronoscope** | **FullStory** | **LogRocket** | **OpenReplay** |
-|---|---|---|---|---|
-| Desktop apps | ✅ Native SDKs | ❌ Web only | ❌ Web only | ❌ Web only |
-| Self-hosted | ✅ Fully | ❌ SaaS only | ❌ SaaS only | ✅ Partial |
-| Data stays on-prem | ✅ Yes | ❌ No | ❌ No | ✅ Yes |
-| PII auto-redaction | ✅ Built-in | ✅ Paid | ✅ Paid | ❌ Manual |
-| macOS/Windows/Linux | ✅ All three | ❌ N/A | ❌ N/A | ❌ N/A |
-| Open source | ✅ MIT | ❌ Proprietary | ❌ Proprietary | ✅ AGPL |
 
 ---
 
@@ -172,23 +158,28 @@ Drop the SDK into your desktop app and start capturing in minutes:
 ```swift
 import Chronoscope
 
-let config = CaptureConfig(apiKey: "your-key", serverURL: "https://api.yourapp.com")
-Chronoscope.shared.start(config: config)
+let endpoint = URL(string: "https://api.yourapp.com")!
+let config = CaptureConfig(apiKey: "your-key", endpoint: endpoint)
+await Chronoscope.shared.start(config: config)
 // ... later ...
-Chronoscope.shared.stop()
+await Chronoscope.shared.stop()
 ```
 
 **Windows (C++20):**
 ```cpp
+#include <chronoscope/sdk.h>
+
 chronoscope::CaptureConfig config{"your-key", "https://api.yourapp.com"};
-auto session = chronoscope::CaptureSession::create(config);
-session->start();
+auto session = chronoscope::Chronoscope::Instance()
+    .StartSession(config, hwnd, nullptr);
 // ... later ...
-session->stop();
+session->Stop();
 ```
 
 **Linux (Rust):**
 ```rust
+use chronoscope_sdk::{CaptureConfig, LinuxCapture};
+
 let config = CaptureConfig::new("your-key", "https://api.yourapp.com");
 let mut capture = LinuxCapture::new(config)?;
 capture.start().await?;
