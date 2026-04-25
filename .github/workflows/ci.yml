@@ -146,7 +146,7 @@ jobs:
         run: cd services/web && npm ci && npm run build
 
       - name: Audit Web Dependencies
-        run: cd services/web && npm audit --audit-level=moderate
+        run: cd services/web && npm audit --audit-level=high
 
       - name: Test Web
         run: cd services/web && npm test

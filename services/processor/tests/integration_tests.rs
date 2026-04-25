@@ -183,11 +183,7 @@ async fn create_config(infra: &TestInfra) -> chronoscope_processor::config::Conf
     let s3_client = aws_sdk_s3::Client::from_conf(s3_config);
 
     let redis_url = format!("redis://localhost:{}", infra.redis_port);
-    let redis_client = redis::Client::open(redis_url)
-        .unwrap()
-        .get_multiplexed_tokio_connection()
-        .await
-        .unwrap();
+    let redis_client = redis::Client::open(redis_url).unwrap();
 
     chronoscope_processor::config::Config {
         db_pool,
