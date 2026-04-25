@@ -89,10 +89,13 @@ pub async fn encode_h264_impl(session_id: &str, frames: Vec<PathBuf>) -> Result<
             let raw = img.into_raw();
             let mut rgb_frame =
                 frame::Video::new(ffmpeg::format::Pixel::RGB24, width as u32, height as u32);
-            if raw.len() != rgb_frame.data(0).len() {
+            let expected = (width * height * 3) as usize;
+            if raw.len() != expected {
                 tracing::warn!(
-                    "Skipping frame with mismatched dimensions: {}",
-                    path.display()
+                    "Skipping frame with mismatched dimensions: {} (got {} bytes, expected {})",
+                    path.display(),
+                    raw.len(),
+                    expected
                 );
                 continue;
             }

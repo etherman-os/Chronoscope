@@ -20,7 +20,7 @@ pub async fn update_session_status(
 
     client
         .execute(
-            "UPDATE sessions SET status = $1, processed_at = NOW(), video_path = $2, metadata = metadata || $3 WHERE id = $4::uuid",
+            "UPDATE sessions SET status = $1, processed_at = NOW(), video_path = $2, metadata = COALESCE(metadata, '{}'::jsonb) || $3 WHERE id = $4::uuid",
             &[&status, &video_path, &metadata, &session_uuid],
         )
         .await?;

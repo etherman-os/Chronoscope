@@ -3,6 +3,18 @@ use chronoscope_processor::{
 };
 use tracing::{error, info};
 
+#[cfg(unix)]
+async fn wait_sigterm() {
+    let mut sig = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("failed to install SIGTERM handler");
+    sig.recv().await;
+}
+
+#[cfg(not(unix))]
+async fn wait_sigterm() {
+    std::future::pending::<()>().await;
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
@@ -11,11 +23,8 @@ async fn main() -> anyhow::Result<()> {
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(100);
 
-    // Spawn queue listener (Redis)
     tokio::spawn(queue::queue_listener(config.clone(), tx));
 
-    // Process sessions with graceful shutdown
-    let mut shutdown = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
     loop {
         tokio::select! {
             Some(session_id) = rx.recv() => {
@@ -27,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
                 info!("Received Ctrl+C, shutting down...");
                 break;
             }
-            _ = shutdown.recv() => {
+            _ = wait_sigterm() => {
                 info!("Received SIGTERM, shutting down...");
                 break;
             }

@@ -1,13 +1,12 @@
 use anyhow::{Context, Result};
 use aws_sdk_s3::Client as S3Client;
 use deadpool_postgres::Pool;
-use redis::aio::MultiplexedConnection;
 
 #[derive(Clone)]
 pub struct Config {
     pub db_pool: Pool,
     pub s3_client: S3Client,
-    pub redis_client: MultiplexedConnection,
+    pub redis_client: redis::Client,
     pub bucket_name: String,
     pub processed_bucket_name: String,
 }
@@ -20,15 +19,21 @@ impl Config {
         pg_cfg.url = Some(db_url);
         let db_pool = pg_cfg.create_pool(None, tokio_postgres::NoTls)?;
 
-        let aws_endpoint = std::env::var("AWS_ENDPOINT_URL")
-            .unwrap_or_else(|_| "http://localhost:9000".to_string());
+        let s3_endpoint = std::env::var("S3_ENDPOINT_URL")
+            .unwrap_or_else(|_| std::env::var("AWS_ENDPOINT_URL")
+                .unwrap_or_else(|_| "http://localhost:9000".to_string()));
         let access_key =
-            std::env::var("AWS_ACCESS_KEY_ID").context("AWS_ACCESS_KEY_ID must be set")?;
+            std::env::var("S3_ACCESS_KEY_ID")
+                .or_else(|_| std::env::var("AWS_ACCESS_KEY_ID"))
+                .context("S3_ACCESS_KEY_ID (or legacy AWS_ACCESS_KEY_ID) must be set")?;
         let secret_key =
-            std::env::var("AWS_SECRET_ACCESS_KEY").context("AWS_SECRET_ACCESS_KEY must be set")?;
+            std::env::var("S3_SECRET_ACCESS_KEY")
+                .or_else(|_| std::env::var("AWS_SECRET_ACCESS_KEY"))
+                .context("S3_SECRET_ACCESS_KEY (or legacy AWS_SECRET_ACCESS_KEY) must be set")?;
 
         let aws_cfg = aws_config::defaults(aws_config::BehaviorVersion::latest())
-            .endpoint_url(aws_endpoint)
+            .endpoint_url(s3_endpoint)
+            .region(aws_sdk_s3::config::Region::new("us-east-1"))
             .credentials_provider(aws_sdk_s3::config::Credentials::new(
                 access_key, secret_key, None, None, "env",
             ))
@@ -42,10 +47,7 @@ impl Config {
 
         let redis_url =
             std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string());
-        let redis_client = {
-            let client = redis::Client::open(redis_url)?;
-            client.get_multiplexed_tokio_connection().await?
-        };
+        let redis_client = redis::Client::open(redis_url)?;
 
         let bucket_name = std::env::var("S3_BUCKET").context("S3_BUCKET must be set")?;
         let processed_bucket_name =
