@@ -40,10 +40,10 @@ func TestInitSession(t *testing.T) {
 
 		projectID := uuid.New().String()
 		mock.ExpectExec(`INSERT INTO sessions`).
-			WithArgs(sqlmock.AnyArg(), projectID, "user-123", "capturing", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), projectID, "user-123", "capturing", sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectExec(`INSERT INTO audit_logs`).
-			WithArgs(projectID, "session_initiated", "user-123", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(projectID, "session_initiated", "user-123", sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		w := httptest.NewRecorder()
@@ -80,10 +80,10 @@ func TestInitSession(t *testing.T) {
 
 		projectID := uuid.New().String()
 		mock.ExpectExec(`INSERT INTO sessions`).
-			WithArgs(sqlmock.AnyArg(), projectID, "user-456", "capturing", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), projectID, "user-456", "capturing", sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectExec(`INSERT INTO audit_logs`).
-			WithArgs(projectID, "session_initiated", "user-456", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(projectID, "session_initiated", "user-456", sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		w := httptest.NewRecorder()
@@ -290,7 +290,7 @@ func TestGetSession(t *testing.T) {
 			AddRow(1, sessionID, "click", 1000, 100, 200, "button", nil, time.Now()).
 			AddRow(2, sessionID, "scroll", 2000, 0, 500, "window", nil, time.Now())
 		mock.ExpectQuery(`SELECT .* FROM events WHERE session_id = \$1 ORDER BY timestamp_ms ASC`).
-			WithArgs(sessionID).
+			WithArgs(sessionID, 20, 0).
 			WillReturnRows(eventRows)
 
 		w := httptest.NewRecorder()
@@ -353,7 +353,7 @@ func TestGetSession(t *testing.T) {
 			WithArgs(sessionID).
 			WillReturnRows(sessionRows)
 		mock.ExpectQuery(`SELECT .* FROM events WHERE session_id = \$1 ORDER BY timestamp_ms ASC`).
-			WithArgs(sessionID).
+			WithArgs(sessionID, 20, 0).
 			WillReturnError(sql.ErrConnDone)
 
 		w := httptest.NewRecorder()
@@ -396,7 +396,7 @@ func TestInitSessionErrors(t *testing.T) {
 
 		projectID := uuid.New().String()
 		mock.ExpectExec(`INSERT INTO sessions`).
-			WithArgs(sqlmock.AnyArg(), projectID, "user-123", "capturing", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), projectID, "user-123", "capturing", sqlmock.AnyArg()).
 			WillReturnError(sql.ErrConnDone)
 
 		w := httptest.NewRecorder()

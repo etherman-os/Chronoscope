@@ -47,7 +47,7 @@ func TestUploadEvents(t *testing.T) {
 			WithArgs(sessionID).
 			WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
 		mock.ExpectExec(`INSERT INTO audit_logs`).
-			WithArgs(projectID, "events_uploaded", "", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(projectID, "events_uploaded", "", sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		w := httptest.NewRecorder()

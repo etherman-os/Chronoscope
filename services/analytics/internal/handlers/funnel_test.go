@@ -22,6 +22,7 @@ func TestGetFunnel(t *testing.T) {
 		defer cfg.DB.Close()
 
 		projectID := uuid.New().String()
+		mock.ExpectBegin()
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM sessions WHERE project_id = \$1`).
 			WithArgs(projectID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(100))
@@ -34,6 +35,7 @@ func TestGetFunnel(t *testing.T) {
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM sessions WHERE project_id = \$1 AND status = 'completed'`).
 			WithArgs(projectID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(40))
+		mock.ExpectCommit()
 
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
@@ -68,6 +70,7 @@ func TestGetFunnel(t *testing.T) {
 		defer cfg.DB.Close()
 
 		projectID := uuid.New().String()
+		mock.ExpectBegin()
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM sessions WHERE project_id = \$1`).
 			WithArgs(projectID).
 			WillReturnError(sql.ErrConnDone)
@@ -87,6 +90,7 @@ func TestGetFunnel(t *testing.T) {
 		defer cfg.DB.Close()
 
 		projectID := uuid.New().String()
+		mock.ExpectBegin()
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM sessions WHERE project_id = \$1`).
 			WithArgs(projectID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(100))
@@ -109,6 +113,7 @@ func TestGetFunnel(t *testing.T) {
 		defer cfg.DB.Close()
 
 		projectID := uuid.New().String()
+		mock.ExpectBegin()
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM sessions WHERE project_id = \$1`).
 			WithArgs(projectID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(100))
@@ -134,6 +139,7 @@ func TestGetFunnel(t *testing.T) {
 		defer cfg.DB.Close()
 
 		projectID := uuid.New().String()
+		mock.ExpectBegin()
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM sessions WHERE project_id = \$1`).
 			WithArgs(projectID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(100))

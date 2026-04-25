@@ -13,7 +13,7 @@ func TestRateLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	t.Run("allows requests within limit", func(t *testing.T) {
-		rl := RateLimit(2, time.Minute)
+		rl := RateLimit(2, time.Minute, nil)
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request, _ = http.NewRequest("GET", "/", nil)
@@ -26,7 +26,7 @@ func TestRateLimit(t *testing.T) {
 	})
 
 	t.Run("blocks requests over limit", func(t *testing.T) {
-		rl := RateLimit(1, time.Minute)
+		rl := RateLimit(1, time.Minute, nil)
 		w1 := httptest.NewRecorder()
 		c1, _ := gin.CreateTestContext(w1)
 		c1.Request, _ = http.NewRequest("GET", "/", nil)
@@ -45,7 +45,7 @@ func TestRateLimit(t *testing.T) {
 	})
 
 	t.Run("falls back to client IP", func(t *testing.T) {
-		rl := RateLimit(1, time.Minute)
+		rl := RateLimit(1, time.Minute, nil)
 		w1 := httptest.NewRecorder()
 		c1, _ := gin.CreateTestContext(w1)
 		c1.Request, _ = http.NewRequest("GET", "/", nil)
@@ -79,10 +79,10 @@ func TestAllowRefill(t *testing.T) {
 }
 
 func TestMin(t *testing.T) {
-	if min(1, 2) != 1 {
-		t.Error("min(1,2) should be 1")
+	if minInt(1, 2) != 1 {
+		t.Error("minInt(1,2) should be 1")
 	}
-	if min(3, 2) != 2 {
-		t.Error("min(3,2) should be 2")
+	if minInt(3, 2) != 2 {
+		t.Error("minInt(3,2) should be 2")
 	}
 }

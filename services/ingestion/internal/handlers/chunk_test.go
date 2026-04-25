@@ -154,13 +154,13 @@ func TestUploadChunk(t *testing.T) {
 			WithArgs(sessionID).
 			WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
 		mock.ExpectExec(`INSERT INTO audit_logs`).
-			WithArgs(projectID, "chunk_uploaded", "", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(projectID, "chunk_uploaded", "", sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		var b bytes.Buffer
 		writer := multipart.NewWriter(&b)
 		part, _ := writer.CreateFormFile("chunk", "chunk.jpg")
-		_, _ = part.Write([]byte("fake-image-data"))
+		_, _ = part.Write([]byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46})
 		writer.Close()
 
 		w := httptest.NewRecorder()

@@ -2,8 +2,6 @@ package integration
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"mime/multipart"
 	"net/http"
@@ -50,8 +48,13 @@ func mockMinIOClient(t *testing.T) *minio.Client {
 	return client
 }
 
+func expectAuthLookup(mock sqlmock.Sqlmock, projectID string) {
+	mock.ExpectQuery(`SELECT id, api_key_hash FROM projects WHERE api_key_hash IS NOT NULL`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "api_key_hash"}).
+			AddRow(projectID, "$2a$10$gf.NT4vS/mClWzg0r1mAweLDwDNX1v5faKle.NamtfrmxTOveZ.O2"))
+}
+
 func TestFullSessionLifecycle(t *testing.T) {
-	// Use sqlmock to simulate PostgreSQL for the full lifecycle.
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("failed to create sqlmock: %v", err)
@@ -65,27 +68,20 @@ func TestFullSessionLifecycle(t *testing.T) {
 		BucketName: "chronoscope-test",
 	}
 
-	apiKey := "test-api-key"
-	hash := sha256.Sum256([]byte(apiKey))
-	hashHex := hex.EncodeToString(hash[:])
+	apiKey := "valid-api-key-123"
 	projectID := "22222222-2222-2222-2222-222222222222"
 
-	// Auth lookup
-	mock.ExpectQuery(`SELECT id FROM projects WHERE api_key_hash = \$1`).
-		WithArgs(hashHex).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(projectID))
+	expectAuthLookup(mock, projectID)
 
-	// 1. Init session
 	mock.ExpectExec(`INSERT INTO sessions`).
-		WithArgs(sqlmock.AnyArg(), projectID, "integration-test", "capturing", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(sqlmock.AnyArg(), projectID, "integration-test", "capturing", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`INSERT INTO audit_logs`).
-		WithArgs(projectID, "session_initiated", "integration-test", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(projectID, "session_initiated", "integration-test", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	router := setupRouter(cfg)
 
-	// Init session request
 	initBody, _ := json.Marshal(map[string]interface{}{
 		"user_id":      "integration-test",
 		"capture_mode": "video",
@@ -108,12 +104,8 @@ func TestFullSessionLifecycle(t *testing.T) {
 		t.Fatal("expected session_id in init response")
 	}
 
-	// Reset mock for next phase
-	mock.ExpectQuery(`SELECT id FROM projects WHERE api_key_hash = \$1`).
-		WithArgs(hashHex).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(projectID))
+	expectAuthLookup(mock, projectID)
 
-	// 2. Upload events
 	mock.ExpectQuery(`SELECT project_id FROM sessions WHERE id = \$1`).
 		WithArgs(createdSessionID).
 		WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
@@ -130,7 +122,7 @@ func TestFullSessionLifecycle(t *testing.T) {
 		WithArgs(createdSessionID).
 		WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
 	mock.ExpectExec(`INSERT INTO audit_logs`).
-		WithArgs(projectID, "events_uploaded", "", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(projectID, "events_uploaded", "", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	eventsBody, _ := json.Marshal(map[string]interface{}{
@@ -148,15 +140,11 @@ func TestFullSessionLifecycle(t *testing.T) {
 		t.Fatalf("upload events failed: status=%d body=%s", w.Code, w.Body.String())
 	}
 
-	// Reset mock for next phase
-	mock.ExpectQuery(`SELECT id FROM projects WHERE api_key_hash = \$1`).
-		WithArgs(hashHex).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(projectID))
+	expectAuthLookup(mock, projectID)
 
-	// 3. Complete session
-	mock.ExpectQuery(`SELECT project_id FROM sessions WHERE id = \$1`).
+	mock.ExpectQuery(`SELECT project_id, status FROM sessions WHERE id = \$1`).
 		WithArgs(createdSessionID).
-		WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
+		WillReturnRows(sqlmock.NewRows([]string{"project_id", "status"}).AddRow(projectID, "capturing"))
 	mock.ExpectExec(`UPDATE sessions`).
 		WithArgs(createdSessionID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
@@ -164,7 +152,7 @@ func TestFullSessionLifecycle(t *testing.T) {
 		WithArgs(createdSessionID).
 		WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
 	mock.ExpectExec(`INSERT INTO audit_logs`).
-		WithArgs(projectID, "session_completed", "", sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WithArgs(projectID, "session_completed", "", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	req = httptest.NewRequest("POST", "/v1/sessions/"+createdSessionID+"/complete", nil)
@@ -176,12 +164,8 @@ func TestFullSessionLifecycle(t *testing.T) {
 		t.Fatalf("complete session failed: status=%d body=%s", w.Code, w.Body.String())
 	}
 
-	// Reset mock for list verification
-	mock.ExpectQuery(`SELECT id FROM projects WHERE api_key_hash = \$1`).
-		WithArgs(hashHex).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(projectID))
+	expectAuthLookup(mock, projectID)
 
-	// 4. Verify session exists in list
 	rows := sqlmock.NewRows([]string{"id", "project_id", "user_id", "duration_ms", "video_path", "event_count", "error_count", "metadata", "status", "created_at", "completed_at"}).
 		AddRow(createdSessionID, projectID, "integration-test", nil, nil, 1, 0, nil, "completed", time.Now(), time.Now())
 	mock.ExpectQuery(`SELECT .* FROM sessions WHERE project_id = \$1 ORDER BY created_at DESC LIMIT \$2 OFFSET \$3`).
@@ -205,7 +189,6 @@ func TestFullSessionLifecycle(t *testing.T) {
 		t.Fatal("expected at least one session in list")
 	}
 
-	// Verify all mock expectations were met
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unfulfilled expectations: %v", err)
 	}
@@ -225,15 +208,11 @@ func TestChunkUploadValidation(t *testing.T) {
 		BucketName: "chronoscope-test",
 	}
 
-	apiKey := "test-api-key"
-	hash := sha256.Sum256([]byte(apiKey))
-	hashHex := hex.EncodeToString(hash[:])
+	apiKey := "valid-api-key-123"
 	projectID := "22222222-2222-2222-2222-222222222222"
 	sessionID := uuid.New().String()
 
-	mock.ExpectQuery(`SELECT id FROM projects WHERE api_key_hash = \$1`).
-		WithArgs(hashHex).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(projectID))
+	expectAuthLookup(mock, projectID)
 	mock.ExpectQuery(`SELECT project_id FROM sessions WHERE id = \$1`).
 		WithArgs(sessionID).
 		WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
@@ -243,7 +222,7 @@ func TestChunkUploadValidation(t *testing.T) {
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	part, _ := writer.CreateFormFile("chunk", "chunk.jpg")
-	_, _ = part.Write([]byte("fake-image-data"))
+	_, _ = part.Write([]byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46})
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/v1/sessions/"+sessionID+"/chunks", &b)
@@ -253,8 +232,6 @@ func TestChunkUploadValidation(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	// Network will fail because MinIO client points to localhost:1,
-	// but validation should pass before that.
 	if w.Code == http.StatusBadRequest || w.Code == http.StatusForbidden {
 		t.Fatalf("unexpected validation failure: status=%d body=%s", w.Code, w.Body.String())
 	}

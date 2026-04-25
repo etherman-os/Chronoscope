@@ -28,7 +28,7 @@ func TestExportUserData(t *testing.T) {
 			AddRow(sessionID, projectID, userID, 1000, nil, 2, 0, nil, "completed", time.Now(), nil)
 
 		mock.ExpectQuery(`SELECT .* FROM sessions WHERE user_id = \$1 AND project_id = \$2`).
-			WithArgs(userID, projectID).
+			WithArgs(userID, projectID, sqlmock.AnyArg()).
 			WillReturnRows(sessionRows)
 
 		eventRows := sqlmock.NewRows([]string{"id", "session_id", "event_type", "timestamp_ms", "x", "y", "target", "payload", "created_at"}).
@@ -66,7 +66,7 @@ func TestExportUserData(t *testing.T) {
 		userID := "user-123"
 
 		mock.ExpectQuery(`SELECT .* FROM sessions WHERE user_id = \$1 AND project_id = \$2`).
-			WithArgs(userID, projectID).
+			WithArgs(userID, projectID, sqlmock.AnyArg()).
 			WillReturnError(sql.ErrConnDone)
 
 		w := httptest.NewRecorder()

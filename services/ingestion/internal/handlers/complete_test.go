@@ -21,9 +21,9 @@ func TestCompleteSession(t *testing.T) {
 		projectID := uuid.New().String()
 		sessionID := uuid.New().String()
 
-		mock.ExpectQuery(`SELECT project_id FROM sessions WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT project_id, status FROM sessions WHERE id = \$1`).
 			WithArgs(sessionID).
-			WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
+			WillReturnRows(sqlmock.NewRows([]string{"project_id", "status"}).AddRow(projectID, "recording"))
 		mock.ExpectExec(`UPDATE sessions SET status = 'completed', completed_at = NOW\(\) WHERE id = \$1`).
 			WithArgs(sessionID).
 			WillReturnResult(sqlmock.NewResult(1, 1))
@@ -31,7 +31,7 @@ func TestCompleteSession(t *testing.T) {
 			WithArgs(sessionID).
 			WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
 		mock.ExpectExec(`INSERT INTO audit_logs`).
-			WithArgs(projectID, "session_completed", "", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(projectID, "session_completed", "", sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
 		w := httptest.NewRecorder()
@@ -55,9 +55,9 @@ func TestCompleteSession(t *testing.T) {
 		ownerPID := uuid.New().String()
 		sessionID := uuid.New().String()
 
-		mock.ExpectQuery(`SELECT project_id FROM sessions WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT project_id, status FROM sessions WHERE id = \$1`).
 			WithArgs(sessionID).
-			WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(ownerPID))
+			WillReturnRows(sqlmock.NewRows([]string{"project_id", "status"}).AddRow(ownerPID, "recording"))
 
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
@@ -79,7 +79,7 @@ func TestCompleteSession(t *testing.T) {
 		projectID := uuid.New().String()
 		sessionID := uuid.New().String()
 
-		mock.ExpectQuery(`SELECT project_id FROM sessions WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT project_id, status FROM sessions WHERE id = \$1`).
 			WithArgs(sessionID).
 			WillReturnError(sql.ErrNoRows)
 
@@ -103,9 +103,9 @@ func TestCompleteSession(t *testing.T) {
 		projectID := uuid.New().String()
 		sessionID := uuid.New().String()
 
-		mock.ExpectQuery(`SELECT project_id FROM sessions WHERE id = \$1`).
+		mock.ExpectQuery(`SELECT project_id, status FROM sessions WHERE id = \$1`).
 			WithArgs(sessionID).
-			WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
+			WillReturnRows(sqlmock.NewRows([]string{"project_id", "status"}).AddRow(projectID, "recording"))
 		mock.ExpectExec(`UPDATE sessions SET status = 'completed', completed_at = NOW\(\) WHERE id = \$1`).
 			WithArgs(sessionID).
 			WillReturnError(sql.ErrConnDone)

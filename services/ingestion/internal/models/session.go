@@ -1,21 +1,20 @@
 package models
 
 import (
-	"database/sql"
 	"time"
 )
 
 // Session represents a recorded user session.
 type Session struct {
-	ID          string
-	ProjectID   string
-	UserID      string
-	DurationMs  sql.NullInt64
-	VideoPath   sql.NullString
-	EventCount  int
-	ErrorCount  int
-	Metadata    sql.NullString // JSON
-	Status      string
-	CreatedAt   time.Time
-	CompletedAt sql.NullTime
+	ID          string     `json:"id"`
+	ProjectID   string     `json:"project_id"`
+	UserID      string     `json:"user_id"`
+	DurationMs  *int64     `json:"duration_ms"`
+	VideoPath   *string    `json:"video_path"`
+	EventCount  int        `json:"event_count"`
+	ErrorCount  int        `json:"error_count"`
+	Metadata    *string    `json:"metadata"`
+	Status      string     `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
+	CompletedAt *time.Time `json:"completed_at"`
 }
