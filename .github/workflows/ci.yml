@@ -45,6 +45,11 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install FFmpeg deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
+
       - name: Run Rust Lint
         run: |
           cd services/processor && cargo clippy --all-targets --all-features -- -D warnings
