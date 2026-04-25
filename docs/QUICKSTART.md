@@ -36,6 +36,7 @@ docker compose -f docker/docker-compose.yml ps
 ```bash
 cd services/ingestion
 cp .env.example .env
+export $(grep -v '^#' .env | xargs)
 go run cmd/server/main.go
 ```
 
@@ -50,6 +51,7 @@ In a new terminal:
 ```bash
 cd services/analytics
 cp .env.example .env
+export $(grep -v '^#' .env | xargs)
 go run cmd/server/main.go
 ```
 
@@ -69,6 +71,8 @@ npm run dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+> **Note:** The web dashboard reads `VITE_API_KEY` from `.env` to authenticate with the Ingestion API. The default value matches the seeded demo key.
 
 ---
 

@@ -1,9 +1,5 @@
 <div align="center">
 
-> ⚠️ This project was built with heavy AI assistance using multiple coding agents.
-> I directed the architecture and reviewed all changes, but did not write most of the code manually.
-> Feedback and contributions welcome.
-
 # 🔭 Chronoscope
 
 **Session replay for desktop apps. Free. Open source. Self-hosted.**
@@ -36,14 +32,14 @@ Built for teams who:
 ## Features
 
 - **Screen & Event Capture** — Frame-by-frame video + click/scroll/keyboard event tracking via native SDKs
-- **Cross-Platform SDKs** — Swift (macOS/ScreenCaptureKit), C++20 (Windows/WinRT Graphics Capture), Rust (Linux/PipeWire & X11)
-- **Privacy-First** — Automatic PII redaction (credit cards, emails, passwords) via on-device Rust privacy engine
-- **Self-Hosted** — Runs entirely on your infrastructure. PostgreSQL + Redis + MinIO. No external SaaS dependency.
-- **Real-Time Processing** — FFmpeg-powered video processor transcodes, deduplicates frames, and applies redactions asynchronously
+- **Cross-Platform SDKs** — Swift (macOS/ScreenCaptureKit), C++20 (Windows/WinRT Graphics Capture) *experimental*, Rust (Linux/PipeWire & X11) *experimental*
+- **Privacy-First** — Text-level PII detection (credit cards, emails, passwords, SSN) via on-device Rust privacy engine; frame-level redaction is on the roadmap
+- **Self-Hosted** — Runs entirely on your infrastructure. PostgreSQL + Redis + MinIO (S3-compatible object storage). No external SaaS dependency.
+- **Real-Time Processing** — FFmpeg-powered video processor transcodes and deduplicates frames asynchronously
 - **Replay Dashboard** — React-based player with timeline scrubbing and event overlay
 - **Analytics API** — Pre-computed heatmaps, funnel stages, and session statistics
 - **GDPR Ready** — User data export, right-to-be-forgotten deletion, and audit logging endpoints
-- **Production Hardened** — SHA-256 API key hashing, rate limiting, CORS restrictions, input validation, and CSP headers
+- **Production Hardened** — bcrypt API key hashing, rate limiting, CORS restrictions, input validation, and CSP headers
 
 ---
 
@@ -121,11 +117,13 @@ This starts PostgreSQL, Redis, and MinIO in the background.
 # Terminal 1 — Ingestion API
 cd services/ingestion
 cp .env.example .env
+export $(grep -v '^#' .env | xargs)
 go run cmd/server/main.go
 
 # Terminal 2 — Analytics API
 cd services/analytics
 cp .env.example .env
+export $(grep -v '^#' .env | xargs)
 go run cmd/server/main.go
 ```
 
@@ -145,7 +143,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ```bash
 curl -X POST http://localhost:8080/v1/sessions/init \
-  -H "X-API-Key: acad389951a6aa7659c8315a796f91e9" \
+  -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"user-123","capture_mode":"hybrid"}'
 ```
@@ -200,9 +198,9 @@ See [docs/SDK_INTEGRATION.md](docs/SDK_INTEGRATION.md) for full integration guid
 Security is not an afterthought. See [docs/SECURITY.md](docs/SECURITY.md) for the full policy.
 
 Highlights:
-- **API Key Hashing** — SHA-256 before database comparison
+- **API Key Hashing** — bcrypt with cost factor 10
 - **Project Isolation** — Cross-project session access is impossible
-- **Rate Limiting** — Configurable per-API-key token bucket with automatic bucket cleanup
+- **Rate Limiting** — Redis-backed distributed rate limiting with in-memory fallback
 - **Input Validation** — Chunk size (2 MiB), chunk index (10,000), event batch (1,000) limits
 - **PII Redaction** — Automatic credit card, email, password, and SSN detection in frames
 - **CSP & CORS** — Strict headers, configurable origin allowlist

@@ -1,3 +1,8 @@
+//! # Chronoscope Linux SDK (Experimental)
+//!
+//! This SDK is experimental and not recommended for production use.
+//! X11 capture is functional but limited. Wayland support is preliminary.
+
 pub mod buffer;
 pub mod capture;
 pub mod config;

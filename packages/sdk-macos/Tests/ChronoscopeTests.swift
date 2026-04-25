@@ -31,7 +31,7 @@ final class ChronoscopeTests: XCTestCase {
         XCTAssertEqual(config.captureMode, .hybrid)
         XCTAssertEqual(config.frameRate, 10)
         XCTAssertEqual(config.bufferSizeMB, 100)
-        XCTAssertEqual(config.userId, "macos_user")
+        XCTAssertEqual(config.userId, NSUserName())
     }
 
     func testCaptureConfigUserId() {

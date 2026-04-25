@@ -39,9 +39,9 @@ We will:
 - **Project ownership checks** — Every session operation verifies the API key belongs to the project that owns the session.
 
 ### Data Protection
-- **PII masking** — Automatic detection and redaction of credit cards, emails, and passwords in captured frames.
+- **PII masking** — Automatic detection of credit cards, emails, passwords, and SSN in event text and metadata.
 - **GDPR compliance** — Export and right-to-be-forgotten endpoints with audit logging.
-- **Frame redaction** — Real-time blur, blackout, or replacement of sensitive screen regions via the Privacy Engine.
+- **Frame redaction** — Planned: real-time blur, blackout, or replacement of sensitive screen regions via the Privacy Engine.
 
 ### Infrastructure Hardening
 - **Rate limiting** — Configurable per-API-key rate limits (default 100 req/min).

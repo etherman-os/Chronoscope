@@ -1,5 +1,7 @@
 # Chronoscope Linux SDK
 
+> ⚠️ **Experimental** — This SDK is in early development. The X11 capture backend is functional but limited. Wayland support is experimental. Not recommended for production use.
+
 Rust-based screen capture SDK for Linux, supporting both **Wayland** (via PipeWire) and **X11** (via MIT-SHM).
 
 ## Requirements

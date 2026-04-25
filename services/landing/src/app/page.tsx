@@ -40,7 +40,7 @@ export default function Home() {
               Join Waitlist
             </button>
             <a
-              href="https://github.com/chronoscope"
+              href="https://github.com/etherman-os/chronoscope"
               target="_blank"
               rel="noopener noreferrer"
               className="px-8 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold transition-colors w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
@@ -201,7 +201,7 @@ export default function Home() {
           </p>
           <div className="flex items-center gap-6 text-sm">
             <a
-              href="https://github.com/chronoscope"
+              href="https://github.com/etherman-os/chronoscope"
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-500 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:rounded-sm"

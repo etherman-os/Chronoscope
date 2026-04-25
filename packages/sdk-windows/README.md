@@ -1,5 +1,7 @@
 # Chronoscope Windows SDK
 
+> ⚠️ **Experimental** — This SDK is in early development. Graphics capture uses WinRT APIs which require Windows 10 1903+. Not recommended for production use.
+
 Native Windows capture SDK for the Chronoscope platform.
 
 ## Requirements

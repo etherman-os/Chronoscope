@@ -1,3 +1,7 @@
+// Chronoscope Windows SDK (Experimental)
+// This SDK is experimental and not recommended for production use.
+// Requires Windows 10 1903+ for WinRT Graphics Capture API.
+
 #pragma once
 #include "config.h"
 #include "types.h"

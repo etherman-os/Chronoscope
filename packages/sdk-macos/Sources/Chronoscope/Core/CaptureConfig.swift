@@ -22,14 +22,14 @@ public struct CaptureConfig {
     ///   - captureMode: Desired capture mode. Defaults to `.hybrid`.
     ///   - frameRate: Target frame rate. Must be greater than 0. Defaults to `10`.
     ///   - bufferSizeMB: Buffer size in megabytes. Must be greater than 0. Defaults to `100`.
-    ///   - userId: User identifier. Defaults to `"macos_user"`.
+    ///   - userId: User identifier. Defaults to the current macOS username (`NSUserName()`).
     public init(
         apiKey: String,
         endpoint: URL,
         captureMode: CaptureMode = .hybrid,
         frameRate: Int = 10,
         bufferSizeMB: Int = 100,
-        userId: String = "macos_user"
+        userId: String = NSUserName()
     ) {
         precondition(frameRate > 0, "frameRate must be greater than 0")
         precondition(bufferSizeMB > 0, "bufferSizeMB must be greater than 0")

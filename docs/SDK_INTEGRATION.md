@@ -84,7 +84,9 @@ Add to your `.entitlements` file:
 
 ---
 
-## Linux (Rust)
+## Linux (Rust) — Experimental
+
+> **Status:** The Linux SDK is experimental. Wayland (PipeWire) and X11 capture backends are currently placeholders. Event capture is not yet implemented.
 
 ### Requirements
 
@@ -124,7 +126,9 @@ The SDK auto-detects the display server via `WAYLAND_DISPLAY` or `DISPLAY` envir
 
 ---
 
-## Windows (C++)
+## Windows (C++) — Experimental
+
+> **Status:** The Windows SDK is experimental. Graphics capture pipeline and input hooks are currently placeholders.
 
 ### Requirements
 
@@ -175,7 +179,7 @@ int main() {
 
 ## Privacy Configuration
 
-All SDKs integrate with the **Privacy Engine** to redact sensitive UI elements before frames leave the device.
+The **Privacy Engine** provides text-level PII detection and a redaction framework. SDKs can use it to scan text and metadata before upload. Frame-level redaction inside captured video frames is on the roadmap.
 
 ### macOS
 
@@ -222,7 +226,7 @@ session->SetPrivacyFilter({
 });
 ```
 
-> **Note**: Redaction happens locally inside the SDK before upload. No sensitive pixels are transmitted.
+> **Note**: Text-level detection runs locally inside the SDK before upload. Frame-level pixel redaction is planned for a future release.
 
 ---
 

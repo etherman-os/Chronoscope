@@ -372,7 +372,25 @@ groups:
 
 1. **Blue/Green** or **Rolling** deployment for stateless APIs.
 2. **Processor**: scale new workers, drain old queue, then terminate old workers.
-3. **Database**: run migrations before deploying new code.
+3. **Database**: run migrations before deploying new code using `scripts/migrate.sh`:
+
+```bash
+# Run all pending migrations
+export DATABASE_URL="postgres://chronoscope:...@localhost:5432/chronoscope?sslmode=require"
+./scripts/migrate.sh up
+
+# Check current migration version
+./scripts/migrate.sh version
+
+# Roll back one migration
+./scripts/migrate.sh down
+```
+
+The migration script uses [golang-migrate](https://github.com/golang-migrate/migrate) and reads SQL files from the `migrations/` directory. Install the CLI with:
+
+```bash
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+```
 
 ```bash
 # Rolling restart

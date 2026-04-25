@@ -5,11 +5,23 @@ import { useState } from "react";
 export default function WaitlistForm() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim()) {
+    setError(null);
+    if (!email.trim()) return;
+
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error("Submission failed");
       setSubmitted(true);
+    } catch {
+      setError("Waitlist is not yet active. Please check back soon.");
     }
   };
 
@@ -41,6 +53,9 @@ export default function WaitlistForm() {
             Join Waitlist
           </button>
         </form>
+      )}
+      {error && (
+        <p className="mt-3 text-sm text-amber-400 text-center">{error}</p>
       )}
     </div>
   );

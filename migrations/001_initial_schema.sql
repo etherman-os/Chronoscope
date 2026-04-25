@@ -57,13 +57,6 @@ CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_created ON sessions(created_at);
 
--- Seed data
-INSERT INTO organizations (name, plan) VALUES ('Chronoscope Dev', 'enterprise');
-
-INSERT INTO projects (org_id, name, api_key_hash)
-SELECT 
-    id,
-    'Demo App',
-    '0b61f1668881de754863abb929c1d7bd7048419fbec15bb49511d2c5781c7c13'
-FROM organizations 
-WHERE name = 'Chronoscope Dev';
+-- Composite indexes for production performance
+CREATE INDEX IF NOT EXISTS idx_sessions_project_created ON sessions(project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_events_session_ts ON events(session_id, timestamp_ms ASC);

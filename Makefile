@@ -35,8 +35,12 @@ test:
 	cd services/ingestion && go test ./... || failed=1; \
 	echo "Running analytics service tests..."; \
 	cd services/analytics && go test ./... || failed=1; \
-	echo "Running SDK macOS tests..."; \
-	cd packages/sdk-macos && swift test || failed=1; \
+	if [ "$$(uname)" = "Darwin" ]; then \
+		echo "Running SDK macOS tests..."; \
+		cd packages/sdk-macos && swift test || failed=1; \
+	else \
+		echo "Skipping SDK macOS tests (macOS only)..."; \
+	fi; \
 	exit $$failed
 
 # Linting

@@ -39,7 +39,7 @@ export default function Navbar() {
               Pricing
             </button>
             <a
-              href="https://github.com/chronoscope"
+              href="https://github.com/etherman-os/chronoscope"
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:rounded-sm"
@@ -96,7 +96,7 @@ export default function Navbar() {
               Pricing
             </button>
             <a
-              href="https://github.com/chronoscope"
+              href="https://github.com/etherman-os/chronoscope"
               target="_blank"
               rel="noopener noreferrer"
               className="block px-3 py-2 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:rounded-sm"
