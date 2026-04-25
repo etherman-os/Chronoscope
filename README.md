@@ -1,5 +1,9 @@
 <div align="center">
 
+> ⚠️ This project was built with heavy AI assistance (OpenCode / Kimi K2.6).
+> I directed the architecture and reviewed all changes, but did not write most of the code manually.
+> Feedback and contributions welcome.
+
 # 🔭 Chronoscope
 
 **Session replay for desktop apps. Free. Open source. Self-hosted.**
