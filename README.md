@@ -39,7 +39,7 @@ Built for teams who:
 - **Replay Dashboard** — React-based player with timeline scrubbing and event overlay
 - **Analytics API** — Pre-computed heatmaps, funnel stages, and session statistics
 - **GDPR Ready** — User data export, right-to-be-forgotten deletion, and audit logging endpoints
-- **Production Hardened** — bcrypt API key hashing, rate limiting, CORS restrictions, input validation, and CSP headers
+- **Production Hardened** — bcrypt/SHA-256 API key hashing (migration path), rate limiting, CORS restrictions, input validation, and CSP headers
 
 ---
 
@@ -100,6 +100,7 @@ Get a local instance running in **5 minutes**:
 - Go 1.22+
 - Node.js 20+
 - Git
+- Rust 1.75+ (only if building the Linux SDK)
 
 ### 1. Clone & Start Infrastructure
 
@@ -119,13 +120,17 @@ cd services/ingestion
 cp .env.example .env
 export $(grep -v '^#' .env | xargs)
 go run cmd/server/main.go
+# Server binds to SERVER_ADDR (default :8080 from .env)
 
 # Terminal 2 — Analytics API
 cd services/analytics
 cp .env.example .env
 export $(grep -v '^#' .env | xargs)
 go run cmd/server/main.go
+# Server binds to SERVER_ADDR (default :8081 from .env)
 ```
+
+> **Note:** Use `SERVER_ADDR` env var to change the port (e.g., `SERVER_ADDR=:9000`). The legacy `PORT` env var is not supported.
 
 ### 3. Start the Dashboard
 
@@ -152,19 +157,46 @@ INSERT INTO projects (id, name, api_key_hash)
 VALUES (
   gen_random_uuid(),
   'My Project',
+  -- Option A: bcrypt (recommended for new projects)
   '$2a$10$your-bcrypt-hash-here'
+  -- Option B: SHA-256 hex (legacy, for migration compatibility)
+  -- '$(echo -n "your-api-key" | sha256sum | cut -d' ' -f1)'
 );
 ```
 
 Use any bcrypt hasher to generate the hash from your desired API key.
+SHA-256 hash can be generated with: `echo -n "your-api-key" | sha256sum | cut -d' ' -f1`
 
 ### 5. Verify with cURL
 
 ```bash
+# 1. Initialize a session
 curl -X POST http://localhost:8080/v1/sessions/init \
   -H "X-API-Key: YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"user-123","capture_mode":"hybrid"}'
+# Returns: {"session_id":"...","upload_url":"/v1/sessions/.../chunks","expires_at":"..."}
+
+# 2. Upload video chunks (multipart/form-data, JPEG required)
+curl -X POST http://localhost:8080/v1/sessions/SESSION_ID/chunks \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "X-Chunk-Index: 0" \
+  -F "chunk=@frame.jpg;type=image/jpeg"
+# Returns: {"received":true,"next_chunk":1}
+
+# 3. Upload click/scroll/keyboard events (JSON)
+curl -X POST http://localhost:8080/v1/sessions/SESSION_ID/events \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"events":[{"event_type":"click","timestamp_ms":1000,"x":100,"y":200,"target":"button","payload":{"id":"btn-submit"}}]}'
+# Returns: {"count":1}
+
+# 4. Complete the session
+curl -X POST http://localhost:8080/v1/sessions/SESSION_ID/complete \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"duration_ms":5000}'
+# Returns: {"status":"completed"}
 ```
 
 See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the complete guide, including SDK embedding.
@@ -217,7 +249,7 @@ See [docs/SDK_INTEGRATION.md](docs/SDK_INTEGRATION.md) for full integration guid
 Security is not an afterthought. See [docs/SECURITY.md](docs/SECURITY.md) for the full policy.
 
 Highlights:
-- **API Key Hashing** — bcrypt with cost factor 10
+- **API Key Hashing** — bcrypt (recommended, cost factor 10) and SHA-256 hex (legacy migration path)
 - **Project Isolation** — Cross-project session access is impossible
 - **Rate Limiting** — Redis-backed distributed rate limiting with in-memory fallback
 - **Input Validation** — Chunk size (2 MiB), chunk index (10,000), event batch (1,000) limits

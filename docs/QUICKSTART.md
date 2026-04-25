@@ -9,6 +9,7 @@ Get Chronoscope running locally in under 5 minutes.
 - Docker & Docker Compose
 - Go 1.22+ (for ingestion and analytics APIs)
 - Node.js 20+ (for web dashboard)
+- Rust 1.75+ (only if building the Linux SDK or running the video processor)
 - Git
 
 ---
@@ -76,13 +77,36 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 5. Verify with cURL
+## 5. Create a Project and Generate an API Key
 
-Initialize a session using the seeded demo API key:
+There are no seeded demo keys — you must create your own:
 
 ```bash
+# Create an organization and project directly in the database
+docker exec -it chronoscope-postgres psql -U chronoscope -d chronoscope -c "
+INSERT INTO organizations (id, name) VALUES
+  ('00000000-0000-0000-0000-000000000001', 'My Organization');
+
+INSERT INTO projects (id, org_id, name, api_key_hash) VALUES
+  ('00000000-0000-0000-0000-000000000002',
+   '00000000-0000-0000-0000-000000000001',
+   'My Project',
+   -- SHA-256 hex of 'my-secret-api-key'
+   '$(echo -n my-secret-api-key | sha256sum | cut -d\" \" -f1)');
+"
+```
+
+Generate your API key hash:
+```bash
+echo -n "my-secret-api-key" | sha256sum | cut -d' ' -f1
+```
+
+## 6. Verify with cURL
+
+```bash
+# Replace SHA256_HASH with the hash from step 5
 curl -X POST http://localhost:8080/v1/sessions/init \
-  -H "X-API-Key: acad389951a6aa7659c8315a796f91e9" \
+  -H "X-API-Key: my-secret-api-key" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"user-123","capture_mode":"hybrid"}'
 ```

@@ -13,7 +13,7 @@ This document provides practical examples for interacting with the Chronoscope R
 
 ## Authentication
 
-All endpoints require an API key passed in the `X-API-Key` header. The server hashes the provided key with SHA-256 and compares it against `projects.api_key_hash`.
+All endpoints require an API key passed in the `X-API-Key` header. The server supports both bcrypt hashes (recommended for new projects) and legacy SHA-256 hex hashes (for migration compatibility). Both are detected automatically.
 
 ```bash
 export CHRONOSCOPE_API_KEY="your-project-api-key"

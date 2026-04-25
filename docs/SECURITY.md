@@ -35,7 +35,7 @@ We will:
 
 ### Authentication & Authorization
 - **API key authentication** — All ingestion and analytics endpoints require a valid `X-API-Key` header.
-- **API key hashing** — Keys are hashed with SHA-256 before comparison against the database.
+- **API key hashing** — Keys are hashed with bcrypt (recommended, cost factor 10) or SHA-256 hex (legacy migration path). Both formats are detected and compared automatically.
 - **Project ownership checks** — Every session operation verifies the API key belongs to the project that owns the session.
 
 ### Data Protection

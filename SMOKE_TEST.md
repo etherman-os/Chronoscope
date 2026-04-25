@@ -31,7 +31,7 @@ export DATABASE_URL="postgres://chronoscope:chronoscope@localhost:5432/chronosco
 export MINIO_ENDPOINT="localhost:9000"
 export MINIO_ACCESS_KEY="chronoscope"
 export MINIO_SECRET_KEY="chronoscope123"
-export MINIO_BUCKET="chronoscope-sessions"
+export S3_BUCKET="chronoscope-sessions"
 export CORS_ALLOWED_ORIGIN="http://localhost:5173"
 go run cmd/server/main.go
 ```
