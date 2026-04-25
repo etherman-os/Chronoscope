@@ -1,9 +1,7 @@
 package middleware
 
 import (
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,13 +21,11 @@ func TestAPIKeyAuth(t *testing.T) {
 		defer db.Close()
 
 		apiKey := "valid-api-key-123"
-		hash := sha256.Sum256([]byte(apiKey))
-		hashHex := hex.EncodeToString(hash[:])
 		projectID := "proj-123"
+		hashHex := "$2a$10$gf.NT4vS/mClWzg0r1mAweLDwDNX1v5faKle.NamtfrmxTOveZ.O2"
 
-		mock.ExpectQuery(`SELECT id FROM projects WHERE api_key_hash = \$1`).
-			WithArgs(hashHex).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(projectID))
+		mock.ExpectQuery(`SELECT id, api_key_hash FROM projects WHERE api_key_hash IS NOT NULL`).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "api_key_hash"}).AddRow(projectID, hashHex))
 
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
@@ -81,12 +77,11 @@ func TestAPIKeyAuth(t *testing.T) {
 		defer db.Close()
 
 		apiKey := "invalid-key"
-		hash := sha256.Sum256([]byte(apiKey))
-		hashHex := hex.EncodeToString(hash[:])
+		// bcrypt hash of a different key
+		hashHex := "$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqQzBZN0UfGNEsKYGs5vTR6Q8WJkO"
 
-		mock.ExpectQuery(`SELECT id FROM projects WHERE api_key_hash = \$1`).
-			WithArgs(hashHex).
-			WillReturnError(sql.ErrNoRows)
+		mock.ExpectQuery(`SELECT id, api_key_hash FROM projects WHERE api_key_hash IS NOT NULL`).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "api_key_hash"}).AddRow("proj-123", hashHex))
 
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
@@ -112,11 +107,8 @@ func TestAPIKeyAuth(t *testing.T) {
 		defer db.Close()
 
 		apiKey := "some-key"
-		hash := sha256.Sum256([]byte(apiKey))
-		hashHex := hex.EncodeToString(hash[:])
 
-		mock.ExpectQuery(`SELECT id FROM projects WHERE api_key_hash = \$1`).
-			WithArgs(hashHex).
+		mock.ExpectQuery(`SELECT id, api_key_hash FROM projects WHERE api_key_hash IS NOT NULL`).
 			WillReturnError(sql.ErrConnDone)
 
 		w := httptest.NewRecorder()

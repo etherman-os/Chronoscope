@@ -18,6 +18,7 @@ func TestCORS(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request, _ = http.NewRequest("GET", "/", nil)
+		c.Request.Header.Set("Origin", "https://app.chronoscope.io")
 
 		mw(c)
 
@@ -33,6 +34,7 @@ func TestCORS(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request, _ = http.NewRequest("OPTIONS", "/", nil)
+		c.Request.Header.Set("Origin", "https://example.com")
 
 		mw(c)
 
