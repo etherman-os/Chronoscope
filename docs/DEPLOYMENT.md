@@ -11,12 +11,13 @@ Deploy Chronoscope on your own infrastructure with Docker Compose, SSL/TLS, back
 - [SSL/TLS with Nginx](#ssltls-with-nginx)
 - [Backup Strategy](#backup-strategy)
 - [Monitoring Basics](#monitoring-basics)
+- [Zero-Downtime Updates](#zero-downtime-updates)
 
 ---
 
 ## Docker Compose Production Setup
 
-Use the provided `docker-compose.yml` as a base. For production, create a `docker-compose.prod.yml` override:
+Use the provided `docker/docker-compose.yml` as a base. For production, create a `docker-compose.prod.yml` override:
 
 ```yaml
 version: "3.8"
@@ -52,7 +53,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-04-25T
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_USER}
@@ -70,16 +71,19 @@ services:
 
   ingestion:
     build:
-      context: .
-      dockerfile: services/ingestion/Dockerfile
+      context: ./services/ingestion
+      dockerfile: Dockerfile
     environment:
       SERVER_ADDR: :8080
       DATABASE_URL: postgres://chronoscope:${DB_PASSWORD}@postgres:5432/chronoscope?sslmode=disable
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: ${MINIO_USER}
-      S3_SECRET_KEY: ${MINIO_PASSWORD}
-      S3_BUCKET: chronoscope
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_USER}
+      MINIO_SECRET_KEY: ${MINIO_PASSWORD}
+      MINIO_SECURE: "false"
+      CORS_ALLOWED_ORIGIN: "https://app.yourdomain.com"
+      DB_MAX_OPEN_CONNS: "25"
+      DB_MAX_IDLE_CONNS: "5"
+      DB_CONN_MAX_LIFETIME_MINUTES: "30"
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
@@ -93,11 +97,14 @@ services:
 
   analytics:
     build:
-      context: .
-      dockerfile: services/analytics/Dockerfile
+      context: ./services/analytics
+      dockerfile: Dockerfile
     environment:
       SERVER_ADDR: :8081
       DATABASE_URL: postgres://chronoscope:${DB_PASSWORD}@postgres:5432/chronoscope?sslmode=disable
+      DB_MAX_OPEN_CONNS: "25"
+      DB_MAX_IDLE_CONNS: "5"
+      DB_CONN_MAX_LIFETIME_MINUTES: "30"
     ports:
       - "127.0.0.1:8081:8081"
     depends_on:
@@ -107,15 +114,16 @@ services:
 
   processor:
     build:
-      context: .
-      dockerfile: services/processor/Dockerfile
+      context: ./services/processor
+      dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgres://chronoscope:${DB_PASSWORD}@postgres:5432/chronoscope?sslmode=disable
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: ${MINIO_USER}
-      S3_SECRET_KEY: ${MINIO_PASSWORD}
-      WORKER_COUNT: 4
+      AWS_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_PASSWORD}
+      S3_BUCKET: chronoscope-sessions
+      S3_PROCESSED_BUCKET: chronoscope-processed
     depends_on:
       postgres:
         condition: service_healthy
@@ -129,6 +137,9 @@ services:
     build:
       context: ./services/web
       dockerfile: Dockerfile
+    environment:
+      VITE_API_URL: "https://api.yourdomain.com/v1"
+      VITE_PROJECT_ID: "your-project-id"
     ports:
       - "127.0.0.1:3000:80"
     restart: unless-stopped
@@ -156,34 +167,47 @@ docker compose -f docker-compose.prod.yml up -d
 
 ### Ingestion API
 
-| Variable      | Default       | Description                       |
-|---------------|---------------|-----------------------------------|
-| `SERVER_ADDR` | `:8080`       | HTTP listen address               |
-| `DATABASE_URL`| --            | PostgreSQL connection string      |
-| `REDIS_URL`   | --            | Redis connection string           |
-| `S3_ENDPOINT` | --            | MinIO / S3 endpoint               |
-| `S3_ACCESS_KEY`| --           | S3 access key                     |
-| `S3_SECRET_KEY`| --           | S3 secret key                     |
-| `S3_BUCKET`   | `chronoscope` | Default bucket name               |
-| `RATE_LIMIT_RPM` | `100`      | Requests per minute per API key   |
+| Variable                      | Default       | Description                       |
+|-------------------------------|---------------|-----------------------------------|
+| `SERVER_ADDR`                 | `:8080`       | HTTP listen address               |
+| `DATABASE_URL`                | —             | PostgreSQL connection string      |
+| `MINIO_ENDPOINT`              | —             | MinIO host:port                   |
+| `MINIO_ACCESS_KEY`            | —             | MinIO access key                  |
+| `MINIO_SECRET_KEY`            | —             | MinIO secret key                  |
+| `MINIO_SECURE`                | `false`       | Use TLS for MinIO                 |
+| `CORS_ALLOWED_ORIGIN`         | `https://app.chronoscope.io` | Allowed CORS origin |
+| `DB_MAX_OPEN_CONNS`           | `25`          | Max open DB connections           |
+| `DB_MAX_IDLE_CONNS`           | `5`           | Max idle DB connections           |
+| `DB_CONN_MAX_LIFETIME_MINUTES`| `30`          | Max DB connection lifetime        |
 
 ### Analytics API
 
-| Variable      | Default       | Description                       |
-|---------------|---------------|-----------------------------------|
-| `SERVER_ADDR` | `:8081`       | HTTP listen address               |
-| `DATABASE_URL`| --            | PostgreSQL connection string      |
+| Variable                      | Default       | Description                       |
+|-------------------------------|---------------|-----------------------------------|
+| `SERVER_ADDR`                 | `:8081`       | HTTP listen address               |
+| `DATABASE_URL`                | —             | PostgreSQL connection string      |
+| `DB_MAX_OPEN_CONNS`           | `25`          | Max open DB connections           |
+| `DB_MAX_IDLE_CONNS`           | `5`           | Max idle DB connections           |
+| `DB_CONN_MAX_LIFETIME_MINUTES`| `30`          | Max DB connection lifetime        |
 
 ### Processor
 
-| Variable      | Default       | Description                       |
-|---------------|---------------|-----------------------------------|
-| `DATABASE_URL`| --            | PostgreSQL connection string      |
-| `REDIS_URL`   | --            | Redis connection string           |
-| `S3_ENDPOINT` | --            | MinIO / S3 endpoint               |
-| `S3_ACCESS_KEY`| --           | S3 access key                     |
-| `S3_SECRET_KEY`| --           | S3 secret key                     |
-| `WORKER_COUNT`| `4`           | Concurrent processing workers     |
+| Variable              | Default                  | Description                   |
+|-----------------------|--------------------------|-------------------------------|
+| `DATABASE_URL`        | —                        | PostgreSQL connection string  |
+| `REDIS_URL`           | `redis://localhost:6379` | Redis connection string       |
+| `AWS_ENDPOINT_URL`    | `http://localhost:9000`  | S3-compatible endpoint        |
+| `AWS_ACCESS_KEY_ID`   | —                        | S3 access key                 |
+| `AWS_SECRET_ACCESS_KEY`| —                       | S3 secret key                 |
+| `S3_BUCKET`           | —                        | Raw sessions bucket           |
+| `S3_PROCESSED_BUCKET` | —                        | Processed videos bucket       |
+
+### Web Dashboard
+
+| Variable          | Default                      | Description              |
+|-------------------|------------------------------|--------------------------|
+| `VITE_API_URL`    | `http://localhost:8080/v1`   | Ingestion API base URL   |
+| `VITE_PROJECT_ID` | —                            | Default project UUID     |
 
 ---
 
@@ -282,7 +306,8 @@ Use `mc mirror` to sync buckets to offsite storage:
 
 ```bash
 mc alias set local http://localhost:9000 $MINIO_USER $MINIO_PASSWORD
-mc mirror local/chronoscope remote/chronoscope-backup
+mc mirror local/chronoscope-sessions remote/chronoscope-sessions-backup
+mc mirror local/chronoscope-processed remote/chronoscope-processed-backup
 ```
 
 ### Restore
@@ -293,24 +318,17 @@ gunzip < /backups/postgres/chronoscope_20260115_020000.sql.gz \
   | docker compose exec -T postgres psql -U chronoscope -d chronoscope
 
 # MinIO
-mc mirror remote/chronoscope-backup local/chronoscope
+mc mirror remote/chronoscope-sessions-backup local/chronoscope-sessions
+mc mirror remote/chronoscope-processed-backup local/chronoscope-processed
 ```
 
 ---
 
 ## Monitoring Basics
 
-### Health Checks
-
-| Service    | Endpoint     | Expected Response          |
-|------------|--------------|----------------------------|
-| Ingestion  | `GET /healthz` | `200 OK` (DB + S3 healthy) |
-| Analytics  | `GET /healthz` | `200 OK` (DB healthy)      |
-| Processor  | stdout       | Heartbeat log every 30s    |
-
 ### Prometheus Metrics
 
-Both Go services expose `/metrics` when `ENABLE_METRICS=true`:
+The Go services expose Prometheus-compatible metrics on `/metrics` when `ENABLE_METRICS=true`.
 
 | Metric                              | Type      | Description                  |
 |-------------------------------------|-----------|------------------------------|
@@ -350,21 +368,17 @@ groups:
 
 ---
 
-## Updating
-
-### Zero-Downtime Update
+## Zero-Downtime Updates
 
 1. **Blue/Green** or **Rolling** deployment for stateless APIs.
 2. **Processor**: scale new workers, drain old queue, then terminate old workers.
 3. **Database**: run migrations before deploying new code.
 
 ```bash
-# Run migrations
-docker compose exec postgres psql -U chronoscope -d chronoscope -f /migrations/003_new_feature.sql
-
 # Rolling restart
-docker compose up -d --no-deps --build ingestion
-docker compose up -d --no-deps --build analytics
+docker compose -f docker-compose.prod.yml up -d --no-deps --build ingestion
+docker compose -f docker-compose.prod.yml up -d --no-deps --build analytics
+docker compose -f docker-compose.prod.yml up -d --no-deps --build processor
 ```
 
 ---

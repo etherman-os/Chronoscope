@@ -38,7 +38,9 @@ fn process_session_mock(
 ) -> PathBuf {
     let chunks = downloader.download(session_id);
     // Simulate deduplication by removing duplicates
-    let unique: Vec<PathBuf> = chunks.into_iter().collect::<std::collections::HashSet<_>>()
+    let unique: Vec<PathBuf> = chunks
+        .into_iter()
+        .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect();
     encoder.encode(session_id, &unique)
@@ -70,18 +72,24 @@ fn test_mock_pipeline_deduplicates() {
 
 #[test]
 fn test_deduplicator_with_real_images() {
-    use image::{ImageBuffer, Rgb};
     use chronoscope_processor::deduplicator;
+    use image::{ImageBuffer, Rgb};
 
     let temp_dir = tempfile::tempdir().unwrap();
     let img1_path = temp_dir.path().join("frame1.jpg");
     let img2_path = temp_dir.path().join("frame2.jpg");
     let img3_path = temp_dir.path().join("frame3.jpg");
 
-    // Create three images: img1 and img2 are identical, img3 is different
+    // Create three images: img1 and img2 are identical, img3 is structurally different
     let img1: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_pixel(64, 64, Rgb([255, 0, 0]));
     let img2: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_pixel(64, 64, Rgb([255, 0, 0]));
-    let img3: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_pixel(64, 64, Rgb([0, 255, 0]));
+    let mut img3: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_pixel(64, 64, Rgb([0, 255, 0]));
+    // Add high-contrast noise so perceptual hash differs significantly
+    for (x, y, pixel) in img3.enumerate_pixels_mut() {
+        if (x + y) % 2 == 0 {
+            *pixel = Rgb([0, 0, 255]);
+        }
+    }
 
     img1.save(&img1_path).unwrap();
     img2.save(&img2_path).unwrap();
@@ -99,8 +107,8 @@ fn test_deduplicator_with_real_images() {
 
 #[test]
 fn test_config_from_env_missing_vars() {
-    use std::env;
     use chronoscope_processor::config::Config;
+    use std::env;
 
     // This test validates that Config::from_env returns an error
     // when required environment variables are missing.

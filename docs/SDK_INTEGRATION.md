@@ -7,8 +7,8 @@ This guide explains how to integrate the Chronoscope capture SDK into your nativ
 ## Table of Contents
 
 - [macOS (Swift)](#macos-swift)
-- [Windows (C++)](#windows-c)
 - [Linux (Rust)](#linux-rust)
+- [Windows (C++)](#windows-c)
 - [Privacy Configuration](#privacy-configuration)
 - [Event Tracking](#event-tracking)
 
@@ -25,13 +25,26 @@ This guide explains how to integrate the Chronoscope capture SDK into your nativ
 
 ### Installation
 
-Add the SDK package to your project:
+Add the SDK package to your `Package.swift`:
 
 ```swift
-// Package.swift
-dependencies: [
-    .package(url: "https://github.com/etherman-os/chronoscope.git", from: "0.1.0")
-]
+// swift-tools-version:5.9
+import PackageDescription
+
+let package = Package(
+    name: "YourApp",
+    dependencies: [
+        .package(url: "https://github.com/etherman-os/chronoscope.git", from: "0.1.0")
+    ],
+    targets: [
+        .executableTarget(
+            name: "YourApp",
+            dependencies: [
+                .product(name: "Chronoscope", package: "chronoscope")
+            ]
+        )
+    ]
+)
 ```
 
 Or drag the `packages/sdk-macos` folder into your Xcode project.
@@ -43,30 +56,21 @@ import Chronoscope
 
 let config = CaptureConfig(
     apiKey: "your-api-key",
-    apiEndpoint: "https://chronoscope.example.com/v1",
-    captureMode: .hybrid,        // .video, .events, or .hybrid
-    maxFrameRate: 10,
-    privacyRules: [
-        .redact(selector: "#password"),
-        .redact(selector: "#credit-card")
-    ]
+    endpoint: URL(string: "https://chronoscope.example.com/v1")!,
+    captureMode: .hybrid,
+    frameRate: 10,
+    bufferSizeMB: 100,
+    userId: "user-123"
 )
 
-let session = ChronoscopeSession(config: config)
+Task {
+    try await Chronoscope.shared.start(config: config)
+}
 
-// Start capture
-session.start(userId: "user-123", metadata: [
-    "app_version": "1.2.3"
-])
-
-// Track custom events
-session.trackEvent(
-    type: "custom_checkout",
-    payload: "{\"amount\": 99.99}"
-)
-
-// Stop capture
-session.stop()
+// Later, to stop capture
+Task {
+    await Chronoscope.shared.stop()
+}
 ```
 
 ### Entitlements
@@ -77,6 +81,46 @@ Add to your `.entitlements` file:
 <key>com.apple.security.screen-recording</key>
 <true/>
 ```
+
+---
+
+## Linux (Rust)
+
+### Requirements
+
+- Rust 1.75+
+- PipeWire (Wayland) or X11 development headers
+- `libx11-dev`, `libxext-dev` (X11)
+- `libpipewire-0.3-dev` (Wayland)
+
+### Add Dependency
+
+```toml
+# Cargo.toml
+[dependencies]
+chronoscope-sdk = { git = "https://github.com/etherman-os/chronoscope.git", subdir = "packages/sdk-linux" }
+```
+
+### Basic Usage
+
+```rust
+use chronoscope_sdk::{CaptureConfig, CaptureMode};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let config = CaptureConfig::new("your-api-key", "https://chronoscope.example.com/v1");
+
+    let mut capture = chronoscope_sdk::LinuxCapture::new(config)?;
+    capture.start().await?;
+
+    // ... application logic ...
+
+    capture.stop().await?;
+    Ok(())
+}
+```
+
+The SDK auto-detects the display server via `WAYLAND_DISPLAY` or `DISPLAY` environment variables.
 
 ---
 
@@ -105,84 +149,25 @@ target_link_libraries(YourApp PRIVATE chronoscope_sdk)
 #include <chronoscope/sdk.h>
 
 int main() {
-    chronoscope::Config config;
+    chronoscope::CaptureConfig config;
     config.api_key = "your-api-key";
-    config.api_endpoint = "https://chronoscope.example.com/v1";
-    config.capture_mode = CaptureMode::Hybrid;
-    config.max_frame_rate = 10;
+    config.endpoint = "https://chronoscope.example.com/v1";
+    config.mode = chronoscope::CaptureMode::Hybrid;
+    config.frame_rate = 10;
+    config.buffer_size_mb = 100;
 
-    chronoscope::Session session(config);
-
-    session.Start("user-123", R"({"app_version":"1.2.3"})");
-
-    // Track a custom event
-    session.TrackEvent("custom_purchase", R"({"sku":"ABC123"})");
+    auto session = chronoscope::Chronoscope::Instance().StartSession(
+        config,
+        GetDesktopWindow(),
+        [](const std::vector<uint8_t>& frame) {
+            // Process frame
+        }
+    );
 
     // ... application logic ...
 
-    session.Stop();
+    chronoscope::Chronoscope::Instance().StopAllSessions();
     return 0;
-}
-```
-
-### Permissions
-
-Your application manifest must declare the `graphicsCaptureProgrammatic` capability:
-
-```xml
-<Package ...>
-  <Capabilities>
-    <Capability Name="graphicsCaptureProgrammatic"/>
-  </Capabilities>
-</Package>
-```
-
----
-
-## Linux (Rust)
-
-### Requirements
-
-- Rust 1.75+
-- PipeWire (Wayland) or X11 development headers
-- `libx11-dev`, `libxext-dev` (X11)
-- `libpipewire-0.3-dev` (Wayland)
-
-### Add Dependency
-
-```toml
-# Cargo.toml
-[dependencies]
-chronoscope-sdk = { path = "../packages/sdk-linux" }
-```
-
-### Basic Usage
-
-```rust
-use chronoscope_sdk::{Config, CaptureMode, Session};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = Config {
-        api_key: "your-api-key".to_string(),
-        api_endpoint: "https://chronoscope.example.com/v1".to_string(),
-        capture_mode: CaptureMode::Hybrid,
-        max_frame_rate: 10,
-        privacy_rules: vec![
-            PrivacyRule::Redact("#ssn".to_string()),
-        ],
-    };
-
-    let mut session = Session::new(config);
-
-    session.start("user-123", Some(r#"{"app_version":"1.2.3"}"#)).await?;
-
-    session.track_event("custom_login", Some(r#"{"provider":"oauth"}"#)).await?;
-
-    // ... application logic ...
-
-    session.stop().await?;
-    Ok(())
 }
 ```
 
@@ -190,44 +175,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Privacy Configuration
 
-All SDKs support a privacy rule system to redact sensitive UI elements before frames leave the device.
+All SDKs integrate with the **Privacy Engine** to redact sensitive UI elements before frames leave the device.
 
-### Rule Types
-
-| Rule | Description |
-|------|-------------|
-| `Redact(selector)` | Blackout the region matching the selector |
-| `Blur(selector, radius)` | Gaussian blur the region |
-| `Replace(selector, text)` | Overlay replacement text |
-
-### macOS Example
+### macOS
 
 ```swift
-config.privacyRules = [
-    .redact(selector: "input[type=password]"),
-    .blur(selector: ".sensitive-document", radius: 20),
-    .replace(selector: "#email", text: "[EMAIL REDACTED]")
-]
+let privacyConfig = PrivacyConfig(
+    detectCreditCards: true,
+    detectEmails: true,
+    detectPasswords: true,
+    detectSSN: false,
+    redactionMode: "blackout",
+    customPatterns: ["\\bCONFIDENTIAL\\b"],
+    excludedApps: ["com.apple.keychainaccess"]
+)
+
+let engine = PrivacyEngine(config: privacyConfig)
 ```
 
-### Windows Example
-
-```cpp
-config.privacy_rules = {
-    PrivacyRule::Redact("input[type=password]"),
-    PrivacyRule::Blur(".sensitive-document", 20),
-    PrivacyRule::Replace("#email", "[EMAIL REDACTED]")
-};
-```
-
-### Linux Example
+### Linux
 
 ```rust
-config.privacy_rules = vec![
-    PrivacyRule::Redact("input[type=password]".to_string()),
-    PrivacyRule::Blur(".sensitive-document".to_string(), 20),
-    PrivacyRule::Replace("#email".to_string(), "[EMAIL REDACTED]".to_string()),
-];
+use chronoscope_privacy::{PrivacyConfig, RedactionMode};
+
+let privacy_config = PrivacyConfig {
+    detect_credit_cards: true,
+    detect_emails: true,
+    detect_passwords: true,
+    detect_ssn: false,
+    redaction_mode: RedactionMode::Blackout,
+    custom_patterns: vec![],
+    excluded_apps: vec![],
+};
+
+let engine = chronoscope_privacy::PrivacyEngine::new(privacy_config);
+```
+
+### Windows
+
+The Windows SDK exposes `SetPrivacyFilter` to exclude specific window titles from capture:
+
+```cpp
+session->SetPrivacyFilter({
+    "Password Manager",
+    "Banking Portal"
+});
 ```
 
 > **Note**: Redaction happens locally inside the SDK before upload. No sensitive pixels are transmitted.
@@ -246,33 +238,24 @@ The SDKs automatically capture:
 
 ### Custom Events
 
-Track application-specific actions:
+Track application-specific actions via the REST API directly or through SDK wrappers.
 
-```swift
-// macOS
-session.trackEvent(type: "checkout_completed", payload: "{\"total\": 49.99}")
+Send custom events using the `events` endpoint:
+
+```bash
+curl -X POST "https://chronoscope.example.com/v1/sessions/${SESSION_ID}/events" \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "events": [
+      {
+        "event_type": "checkout_completed",
+        "timestamp_ms": 5000,
+        "payload": {"total": 49.99}
+      }
+    ]
+  }'
 ```
-
-```cpp
-// Windows
-session.TrackEvent("checkout_completed", R"({"total":49.99})");
-```
-
-```rust
-// Linux
-session.track_event("checkout_completed", Some(r#"{"total":49.99}"#)).await?;
-```
-
-### Event Schema
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `event_type` | string | Category of event |
-| `timestamp_ms` | int | Milliseconds since session start |
-| `x` | int | Screen X coordinate (if applicable) |
-| `y` | int | Screen Y coordinate (if applicable) |
-| `target` | string | CSS-like selector or element ID |
-| `payload` | string | JSON-encoded extra data |
 
 ---
 
@@ -292,5 +275,5 @@ session.track_event("checkout_completed", Some(r#"{"total":49.99}"#)).await?;
 |---------|--------------|-----|
 | No video uploaded | Missing screen recording permission | Check OS entitlements / permissions |
 | Events not appearing | API key invalid | Verify `X-API-Key` header value |
-| High CPU usage | Frame rate too high | Lower `maxFrameRate` to 5-10 |
+| High CPU usage | Frame rate too high | Lower `frameRate` to 5-10 |
 | Blurry replay | Compression too aggressive | Adjust encoder settings in Processor config |

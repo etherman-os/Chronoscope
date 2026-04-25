@@ -1,5 +1,9 @@
 import Foundation
+import OSLog
 
+private let logger = Logger(subsystem: "dev.chronoscope.sdk", category: "CaptureSession")
+
+/// Orchestrates capture, buffering, and upload for a Chronoscope session.
 public actor CaptureSession {
     private let config: CaptureConfig
     private var sessionId: String?
@@ -9,19 +13,21 @@ public actor CaptureSession {
     private var privacyEngine: PrivacyEngine?
     private var uploadTask: Task<Void, Never>?
     private var chunkIndex: Int = 0
-    private var isRunning: Bool = false
+    public private(set) var isRunning: Bool = false
 
     init(config: CaptureConfig) {
         self.config = config
     }
 
-    func start() async throws {
+    /// Starts the capture session.
+    public func start() async throws {
         guard !isRunning else { return }
 
         let sessionResponse = try await initializeSession()
         self.sessionId = sessionResponse.sessionId
 
-        let bufferCapacity = config.bufferSizeMB * 1_024 * 1_024
+        let mb = max(1, min(config.bufferSizeMB, 2_048))
+        let bufferCapacity = mb * 1_024 * 1_024
         self.buffer = CircularBuffer(capacity: bufferCapacity)
         self.uploader = ChunkUploader(
             endpoint: config.endpoint,
@@ -36,23 +42,22 @@ public actor CaptureSession {
             self.privacyEngine = privacyEngine
             self.frameCapture = FrameCapture(frameRate: config.frameRate, privacyEngine: privacyEngine)
             await frameCapture?.start { [weak self] data in
-                Task { [weak self] in
-                    await self?.buffer?.write(data)
-                }
+                await self?.buffer?.write(data)
             }
         }
 
         isRunning = true
         uploadTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                try await Task.sleep(nanoseconds: 10_000_000_000)
                 guard let self = self else { break }
                 await self.uploadLoop()
             }
         }
     }
 
-    func stop() async {
+    /// Stops the capture session and flushes remaining data.
+    public func stop() async {
         guard isRunning else { return }
         isRunning = false
 
@@ -68,7 +73,7 @@ public actor CaptureSession {
         await uploadLoop()
 
         if let uploader = uploader {
-            await uploader.finalize()
+            try? await uploader.finalize()
         }
 
         uploader = nil
@@ -85,7 +90,7 @@ public actor CaptureSession {
             do {
                 try await uploader.uploadChunk(data: chunk, index: index)
             } catch {
-                print("Upload failed for chunk \(index): \(error)")
+                logger.error("Upload failed for chunk \(index): \(error.localizedDescription)")
             }
         }
     }
@@ -100,7 +105,7 @@ public actor CaptureSession {
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
 
         let body: [String: Any] = [
-            "user_id": "macos_user",
+            "user_id": config.userId,
             "capture_mode": config.captureMode.rawValue,
             "metadata": [
                 "os_version": osVersion,
@@ -118,7 +123,8 @@ public actor CaptureSession {
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 else {
             let message = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw ChronoscopeError.sessionInitFailed(message)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode
+            throw ChronoscopeError.sessionInitFailed(message, statusCode: statusCode)
         }
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]

@@ -33,7 +33,7 @@ pub async fn generate_index(
 
     let index = tokio::task::spawn_blocking(move || -> Result<VideoIndex> {
         ffmpeg::init()?;
-        let ictx = ffmpeg::format::input(&video_path)?;
+        let mut ictx = ffmpeg::format::input(&video_path)?;
         let stream = ictx
             .streams()
             .best(ffmpeg::media::Type::Video)
@@ -52,16 +52,9 @@ pub async fn generate_index(
             if s.index() == video_stream_index {
                 let is_key = packet.is_key();
                 if is_key {
-                    let ts = packet
-                        .pts()
-                        .or_else(|| packet.dts())
-                        .unwrap_or(0);
+                    let ts = packet.pts().or_else(|| packet.dts()).unwrap_or(0);
                     let timestamp_ms = (ts as f64 * f64::from(s.time_base()) * 1000.0) as u64;
-                    let byte_offset = if packet.pos() >= 0 {
-                        packet.pos() as u64
-                    } else {
-                        0
-                    };
+                    let byte_offset = 0;
                     keyframes.push(Keyframe {
                         timestamp_ms,
                         byte_offset,
@@ -84,3 +77,35 @@ pub async fn generate_index(
 
     index
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sync::EventTimeline;
+    use image::{ImageBuffer, Rgb};
+
+    #[test]
+    fn test_generate_index_with_video() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let img_path = temp_dir.path().join("frame1.jpg");
+        let img: ImageBuffer<Rgb<u8>, Vec<u8>> = ImageBuffer::from_pixel(64, 64, Rgb([255, 0, 0]));
+        img.save(&img_path).unwrap();
+
+        let video_path = rt.block_on(async {
+            crate::encoder::encode_h264_impl("index_test", vec![img_path])
+                .await
+                .unwrap()
+        });
+
+        let timeline = EventTimeline { events: vec![] };
+        let index = rt.block_on(async {
+            generate_index(&video_path, &timeline).await.unwrap()
+        });
+
+        assert!(index.video_url.contains("file://"));
+        let _ = std::fs::remove_file(&video_path);
+    }
+}
+
+

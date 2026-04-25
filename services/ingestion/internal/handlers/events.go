@@ -1,13 +1,17 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/chronoscope/ingestion/internal/config"
 	"github.com/gin-gonic/gin"
 )
+
+const maxEventBatchSize = 1000
 
 type uploadEventsRequest struct {
 	Events []struct {
@@ -27,10 +31,19 @@ func UploadEvents(cfg *config.Config) gin.HandlerFunc {
 
 		authenticatedProjectID, _ := c.Get("project_id")
 		authPID, _ := authenticatedProjectID.(string)
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
 		var ownerProjectID string
-		err := cfg.DB.QueryRow(`SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&ownerProjectID)
+		err := cfg.DB.QueryRowContext(ctx, `SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&ownerProjectID)
 		if err != nil || ownerProjectID != authPID {
 			c.JSON(http.StatusForbidden, gin.H{"error": "session does not belong to project"})
+			return
+		}
+
+		if c.GetHeader("Content-Type") != "application/json" {
+			c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "Content-Type must be application/json"})
 			return
 		}
 
@@ -45,14 +58,19 @@ func UploadEvents(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		tx, err := cfg.DB.Begin()
+		if len(req.Events) > maxEventBatchSize {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "event batch exceeds maximum size"})
+			return
+		}
+
+		tx, err := cfg.DB.BeginTx(ctx, nil)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transaction"})
 			return
 		}
 		defer tx.Rollback()
 
-		stmt, err := tx.Prepare(
+		stmt, err := tx.PrepareContext(ctx,
 			`INSERT INTO events (session_id, event_type, timestamp_ms, x, y, target, payload) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		)
 		if err != nil {
@@ -69,14 +87,14 @@ func UploadEvents(cfg *config.Config) gin.HandlerFunc {
 				payload = nil
 			}
 
-			_, err := stmt.Exec(sessionID, ev.EventType, ev.TimestampMs, ev.X, ev.Y, ev.Target, payload)
+			_, err := stmt.ExecContext(ctx, sessionID, ev.EventType, ev.TimestampMs, ev.X, ev.Y, ev.Target, payload)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to insert event"})
 				return
 			}
 		}
 
-		_, err = tx.Exec(
+		_, err = tx.ExecContext(ctx,
 			`UPDATE sessions SET event_count = event_count + $1 WHERE id = $2`,
 			len(req.Events),
 			sessionID,
@@ -92,7 +110,7 @@ func UploadEvents(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		var projectID string
-		if err := cfg.DB.QueryRow(`SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&projectID); err == nil {
+		if err := cfg.DB.QueryRowContext(ctx, `SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&projectID); err == nil {
 			if err := LogAudit(cfg, projectID, "events_uploaded", "", map[string]interface{}{"session_id": sessionID, "event_count": len(req.Events)}); err != nil {
 				log.Printf("audit log failed: %v", err)
 			}

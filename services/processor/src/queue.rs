@@ -3,10 +3,7 @@ use anyhow::Result;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info, warn};
 
-pub async fn queue_listener(
-    config: Config,
-    tx: tokio::sync::mpsc::Sender<String>,
-) -> Result<()> {
+pub async fn queue_listener(config: Config, tx: tokio::sync::mpsc::Sender<String>) -> Result<()> {
     let mut con = config.redis_client;
     loop {
         let result: redis::RedisResult<Option<(String, String)>> = redis::cmd("BRPOP")

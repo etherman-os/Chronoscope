@@ -13,7 +13,7 @@ This document provides practical examples for interacting with the Chronoscope R
 
 ## Authentication
 
-All endpoints require an API key passed in the `X-API-Key` header.
+All endpoints require an API key passed in the `X-API-Key` header. The server hashes the provided key with SHA-256 and compares it against `projects.api_key_hash`.
 
 ```bash
 export CHRONOSCOPE_API_KEY="your-project-api-key"
@@ -23,32 +23,28 @@ export CHRONOSCOPE_API_KEY="your-project-api-key"
 
 ## Rate Limiting
 
-- **Ingestion API**: 100 requests/minute per API key (bursts up to 20)
-- **Analytics API**: 300 requests/minute per API key
-- Exceeding the limit returns `429 Too Many Requests` with a `Retry-After` header.
+- **Ingestion API**: 100 requests/minute per API key
+- **Analytics API**: 100 requests/minute per API key
+- Exceeding the limit returns `429 Too Many Requests`.
 
 ---
 
 ## Error Codes
 
-| Status | Code                | Description                                      |
-|--------|---------------------|--------------------------------------------------|
-| 400    | `bad_request`       | Invalid request body or query parameters         |
-| 401    | `unauthorized`      | Missing or invalid `X-API-Key`                   |
-| 403    | `forbidden`         | API key does not have access to this resource    |
-| 404    | `not_found`         | Session, project, or resource not found          |
-| 409    | `conflict`          | Resource already exists or state conflict        |
-| 429    | `rate_limited`      | Too many requests; see `Retry-After` header      |
-| 500    | `internal_error`    | Unexpected server error                          |
+| Status | Description                                      |
+|--------|--------------------------------------------------|
+| 400    | Invalid request body or query parameters         |
+| 401    | Missing or invalid `X-API-Key`                   |
+| 403    | Session does not belong to project               |
+| 404    | Session or resource not found                    |
+| 429    | Rate limit exceeded                              |
+| 500    | Unexpected server error                          |
 
 **Example error response:**
 
 ```json
 {
-  "error": {
-    "code": "bad_request",
-    "message": "capture_mode must be one of: video, events, hybrid"
-  }
+  "error": "session not found"
 }
 ```
 
@@ -79,25 +75,30 @@ curl -X POST http://localhost:8080/v1/sessions/init \
 ```json
 {
   "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "upload_url": "http://localhost:8080/v1/sessions/a1b2c3d4-e5f6-7890-abcd-ef1234567890/chunks",
-  "token": "temp-upload-token",
-  "expires_at": "2024-01-15T12:00:00Z"
+  "upload_url": "/v1/sessions/a1b2c3d4-e5f6-7890-abcd-ef1234567890/chunks",
+  "expires_at": "2026-04-25T12:00:00Z"
 }
 ```
+
+**Request schema:**
+
+| Field         | Type   | Required | Description                           |
+|---------------|--------|----------|---------------------------------------|
+| `user_id`     | string | yes      | User identifier                       |
+| `capture_mode`| string | yes      | `video`, `events`, or `hybrid`        |
+| `metadata`    | object | no       | Arbitrary key-value session metadata  |
 
 ---
 
 ### Upload a Video Chunk
 
-Upload raw frame data during an active session.
+Upload raw frame data during an active session. Maximum chunk size is 2 MiB. Maximum chunk index is 10000.
 
 ```bash
 curl -X POST "http://localhost:8080/v1/sessions/${SESSION_ID}/chunks" \
   -H "X-API-Key: $CHRONOSCOPE_API_KEY" \
   -H "X-Chunk-Index: 0" \
-  -F "chunk=@frame_chunk_0.bin" \
-  -F "timestamp_start=0" \
-  -F "timestamp_end=5000"
+  -F "chunk=@frame_chunk_0.jpg"
 ```
 
 **Response:**
@@ -109,11 +110,17 @@ curl -X POST "http://localhost:8080/v1/sessions/${SESSION_ID}/chunks" \
 }
 ```
 
+**Headers:**
+
+| Header          | Required | Description               |
+|-----------------|----------|---------------------------|
+| `X-Chunk-Index` | yes      | Zero-based chunk index    |
+
 ---
 
 ### Upload Event Batch
 
-Send user interaction events (clicks, keystrokes, etc.).
+Send user interaction events (clicks, keystrokes, etc.). Maximum batch size is 1000 events.
 
 ```bash
 curl -X POST "http://localhost:8080/v1/sessions/${SESSION_ID}/events" \
@@ -127,7 +134,7 @@ curl -X POST "http://localhost:8080/v1/sessions/${SESSION_ID}/events" \
         "x": 450,
         "y": 320,
         "target": "button#submit",
-        "payload": "{\"buttonText\":\"Save\"}"
+        "payload": {"buttonText": "Save"}
       },
       {
         "event_type": "input",
@@ -135,7 +142,7 @@ curl -X POST "http://localhost:8080/v1/sessions/${SESSION_ID}/events" \
         "x": 200,
         "y": 150,
         "target": "input#username",
-        "payload": "{\"value\":\"alice\"}"
+        "payload": {"value": "alice"}
       }
     ]
   }'
@@ -145,9 +152,20 @@ curl -X POST "http://localhost:8080/v1/sessions/${SESSION_ID}/events" \
 
 ```json
 {
-  "received": true
+  "count": 2
 }
 ```
+
+**Event schema:**
+
+| Field         | Type   | Required | Description                           |
+|---------------|--------|----------|---------------------------------------|
+| `event_type`  | string | yes      | Category of event                     |
+| `timestamp_ms`| int    | yes      | Milliseconds since session start      |
+| `x`           | int    | no       | Screen X coordinate                   |
+| `y`           | int    | no       | Screen Y coordinate                   |
+| `target`      | string | no       | CSS-like selector or element ID       |
+| `payload`     | object | no       | Arbitrary JSON extra data             |
 
 ---
 
@@ -172,10 +190,10 @@ curl -X POST "http://localhost:8080/v1/sessions/${SESSION_ID}/complete" \
 
 ### List Sessions
 
-Retrieve sessions for a project.
+Retrieve sessions for the authenticated project.
 
 ```bash
-curl "http://localhost:8080/v1/sessions?project_id=${PROJECT_ID}&limit=10&offset=0" \
+curl "http://localhost:8080/v1/sessions?limit=20&offset=0" \
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
@@ -190,11 +208,18 @@ curl "http://localhost:8080/v1/sessions?project_id=${PROJECT_ID}&limit=10&offset
       "duration_ms": 45200,
       "event_count": 42,
       "status": "completed",
-      "created_at": "2024-01-15T10:30:00Z"
+      "created_at": "2026-04-25T10:30:00Z"
     }
   ]
 }
 ```
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description          |
+|-----------|------|---------|----------------------|
+| `limit`   | int  | 20      | Page size            |
+| `offset`  | int  | 0       | Pagination offset    |
 
 ---
 
@@ -221,11 +246,15 @@ curl "http://localhost:8080/v1/sessions/${SESSION_ID}" \
   },
   "events": [
     {
+      "id": 1,
+      "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "event_type": "click",
       "timestamp_ms": 1200,
       "x": 450,
       "y": 320,
-      "target": "button#submit"
+      "target": "button#submit",
+      "payload": null,
+      "created_at": "2026-04-25T10:30:01Z"
     }
   ]
 }
@@ -240,7 +269,7 @@ curl "http://localhost:8080/v1/sessions/${SESSION_ID}" \
 Get aggregated click coordinates for heatmap visualization.
 
 ```bash
-curl "http://localhost:8081/v1/analytics/heatmap?project_id=${PROJECT_ID}&start_date=2024-01-01&end_date=2024-01-31" \
+curl "http://localhost:8081/v1/analytics/heatmap" \
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
@@ -248,7 +277,8 @@ curl "http://localhost:8081/v1/analytics/heatmap?project_id=${PROJECT_ID}&start_
 
 ```json
 {
-  "heatmap": [
+  "project_id": "22222222-2222-2222-2222-222222222222",
+  "points": [
     { "x": 450, "y": 320, "count": 15 },
     { "x": 200, "y": 150, "count": 8 }
   ]
@@ -262,7 +292,7 @@ curl "http://localhost:8081/v1/analytics/heatmap?project_id=${PROJECT_ID}&start_
 Get conversion rates across funnel stages.
 
 ```bash
-curl "http://localhost:8081/v1/analytics/funnel?project_id=${PROJECT_ID}&funnel_id=signup" \
+curl "http://localhost:8081/v1/analytics/funnel" \
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
@@ -270,10 +300,12 @@ curl "http://localhost:8081/v1/analytics/funnel?project_id=${PROJECT_ID}&funnel_
 
 ```json
 {
+  "project_id": "22222222-2222-2222-2222-222222222222",
   "funnel": [
-    { "stage": "landing", "count": 1000, "conversion": 1.0 },
-    { "stage": "signup_start", "count": 600, "conversion": 0.6 },
-    { "stage": "signup_complete", "count": 250, "conversion": 0.25 }
+    { "stage": "total_sessions", "count": 1000 },
+    { "stage": "sessions_with_events", "count": 600 },
+    { "stage": "sessions_with_chunks", "count": 250 },
+    { "stage": "completed_sessions", "count": 180 }
   ]
 }
 ```
@@ -282,10 +314,10 @@ curl "http://localhost:8081/v1/analytics/funnel?project_id=${PROJECT_ID}&funnel_
 
 ### Session Statistics
 
-Get summary stats for a date range.
+Get summary stats for the authenticated project.
 
 ```bash
-curl "http://localhost:8081/v1/analytics/sessions/stats?project_id=${PROJECT_ID}&days=7" \
+curl "http://localhost:8081/v1/analytics/sessions/stats" \
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
@@ -293,10 +325,13 @@ curl "http://localhost:8081/v1/analytics/sessions/stats?project_id=${PROJECT_ID}
 
 ```json
 {
-  "total_sessions": 1240,
-  "avg_duration_ms": 342000,
-  "total_events": 52800,
-  "error_count": 12
+  "project_id": "22222222-2222-2222-2222-222222222222",
+  "stats": {
+    "avg_duration_ms": 342000,
+    "total_sessions": 1240,
+    "total_events": 52800,
+    "avg_events_per_session": 42.58
+  }
 }
 ```
 
@@ -317,8 +352,15 @@ curl -X POST "http://localhost:8080/v1/gdpr/export/${USER_ID}" \
 
 ```json
 {
-  "download_url": "https://minio.example.com/exports/user-123.zip?token=...",
-  "expires_at": "2024-01-16T10:00:00Z"
+  "user_id": "user-123",
+  "sessions": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "user_id": "user-123",
+      "events": [...]
+    }
+  ],
+  "total_events": 42
 }
 ```
 
@@ -337,8 +379,8 @@ curl -X DELETE "http://localhost:8080/v1/gdpr/delete/${USER_ID}" \
 
 ```json
 {
-  "deleted": true,
-  "affected_sessions": 5
+  "deleted_sessions": 5,
+  "deleted_events": 120
 }
 ```
 
@@ -349,7 +391,7 @@ curl -X DELETE "http://localhost:8080/v1/gdpr/delete/${USER_ID}" \
 View compliance audit trail.
 
 ```bash
-curl "http://localhost:8080/v1/gdpr/audit-logs?project_id=${PROJECT_ID}&limit=50" \
+curl "http://localhost:8080/v1/gdpr/audit-logs?limit=50&offset=0" \
   -H "X-API-Key: $CHRONOSCOPE_API_KEY"
 ```
 
@@ -359,12 +401,15 @@ curl "http://localhost:8080/v1/gdpr/audit-logs?project_id=${PROJECT_ID}&limit=50
 {
   "logs": [
     {
-      "action": "gdpr.export",
-      "actor": "admin@example.com",
-      "details": { "user_id": "user-123" },
-      "created_at": "2024-01-15T11:00:00Z"
+      "id": 1,
+      "project_id": "22222222-2222-2222-2222-222222222222",
+      "action": "session_initiated",
+      "actor": "user-123",
+      "details": {"session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"},
+      "created_at": "2026-04-25T11:00:00Z"
     }
-  ]
+  ],
+  "total": 1
 }
 ```
 
@@ -386,11 +431,3 @@ curl "http://localhost:8080/v1/gdpr/audit-logs?project_id=${PROJECT_ID}&limit=50
 | POST   | `/v1/gdpr/export/{user_id}`             | Export user data        | API Key  |
 | DELETE | `/v1/gdpr/delete/{user_id}`             | Delete user data        | API Key  |
 | GET    | `/v1/gdpr/audit-logs`                   | List audit logs         | API Key  |
-
----
-
-## OpenAPI Specification
-
-For the full schema, see [`protocols/api-contracts/ingestion.yaml`](../protocols/api-contracts/ingestion.yaml).
-
-You can also view it in a Swagger UI by importing the YAML file into [Swagger Editor](https://editor.swagger.io/).

@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"strconv"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -33,6 +35,22 @@ func Load() *Config {
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
+
+	maxOpenConns, _ := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))
+	if maxOpenConns == 0 {
+		maxOpenConns = 25
+	}
+	maxIdleConns, _ := strconv.Atoi(os.Getenv("DB_MAX_IDLE_CONNS"))
+	if maxIdleConns == 0 {
+		maxIdleConns = 5
+	}
+	connMaxLifetime, _ := strconv.Atoi(os.Getenv("DB_CONN_MAX_LIFETIME_MINUTES"))
+	if connMaxLifetime == 0 {
+		connMaxLifetime = 30
+	}
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxIdleConns)
+	db.SetConnMaxLifetime(time.Duration(connMaxLifetime) * time.Minute)
 
 	return &Config{
 		ServerAddr: serverAddr,

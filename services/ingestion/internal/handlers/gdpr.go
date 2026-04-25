@@ -19,7 +19,10 @@ func ExportUserData(cfg *config.Config) gin.HandlerFunc {
 		userID := c.Param("user_id")
 		projectID, _ := c.Get("project_id")
 
-		rows, err := cfg.DB.Query(
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		rows, err := cfg.DB.QueryContext(ctx,
 			`SELECT id, project_id, user_id, duration_ms, video_path, event_count, error_count, metadata, status, created_at, completed_at FROM sessions WHERE user_id = $1 AND project_id = $2`,
 			userID, projectID,
 		)
@@ -29,16 +32,17 @@ func ExportUserData(cfg *config.Config) gin.HandlerFunc {
 		}
 		defer rows.Close()
 
-		sessions := []map[string]interface{}{}
+		var sessions []map[string]interface{}
 		totalEvents := 0
 
 		for rows.Next() {
 			var s models.Session
 			if err := rows.Scan(&s.ID, &s.ProjectID, &s.UserID, &s.DurationMs, &s.VideoPath, &s.EventCount, &s.ErrorCount, &s.Metadata, &s.Status, &s.CreatedAt, &s.CompletedAt); err != nil {
+				log.Printf("scan session row: %v", err)
 				continue
 			}
 
-			eventRows, err := cfg.DB.Query(
+			eventRows, err := cfg.DB.QueryContext(ctx,
 				`SELECT id, session_id, event_type, timestamp_ms, x, y, target, payload, created_at FROM events WHERE session_id = $1 ORDER BY timestamp_ms ASC`,
 				s.ID,
 			)
@@ -46,8 +50,9 @@ func ExportUserData(cfg *config.Config) gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query events"})
 				return
 			}
+			defer eventRows.Close()
 
-			events := []map[string]interface{}{}
+			var events []map[string]interface{}
 			for eventRows.Next() {
 				var eventID int64
 				var sid string
@@ -59,6 +64,7 @@ func ExportUserData(cfg *config.Config) gin.HandlerFunc {
 				var createdAt time.Time
 
 				if err := eventRows.Scan(&eventID, &sid, &eventType, &timestampMs, &x, &y, &target, &payload, &createdAt); err != nil {
+					log.Printf("scan event row: %v", err)
 					continue
 				}
 
@@ -75,7 +81,6 @@ func ExportUserData(cfg *config.Config) gin.HandlerFunc {
 				}
 				events = append(events, ev)
 			}
-			eventRows.Close()
 
 			totalEvents += len(events)
 
@@ -108,7 +113,10 @@ func DeleteUserData(cfg *config.Config) gin.HandlerFunc {
 		userID := c.Param("user_id")
 		projectID, _ := c.Get("project_id")
 
-		rows, err := cfg.DB.Query(
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		rows, err := cfg.DB.QueryContext(ctx,
 			`SELECT id FROM sessions WHERE user_id = $1 AND project_id = $2`,
 			userID, projectID,
 		)
@@ -122,6 +130,7 @@ func DeleteUserData(cfg *config.Config) gin.HandlerFunc {
 		for rows.Next() {
 			var sid string
 			if err := rows.Scan(&sid); err != nil {
+				log.Printf("scan session id: %v", err)
 				continue
 			}
 			sessionIDs = append(sessionIDs, sid)
@@ -131,36 +140,41 @@ func DeleteUserData(cfg *config.Config) gin.HandlerFunc {
 		deletedEvents := 0
 
 		for _, sid := range sessionIDs {
+			// List objects to delete but defer actual deletion until after DB commit
+			var objectsToDelete []string
 			opts := minio.ListObjectsOptions{
 				Prefix:    sid + "/",
 				Recursive: true,
 			}
-			for obj := range cfg.Minio.ListObjects(context.Background(), cfg.BucketName, opts) {
+			for obj := range cfg.Minio.ListObjects(ctx, cfg.BucketName, opts) {
 				if obj.Err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list objects in storage"})
 					return
 				}
-				if err := cfg.Minio.RemoveObject(context.Background(), cfg.BucketName, obj.Key, minio.RemoveObjectOptions{}); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete object from storage"})
-					return
-				}
+				objectsToDelete = append(objectsToDelete, obj.Key)
 			}
 
-			tx, err := cfg.DB.Begin()
+			tx, err := cfg.DB.BeginTx(ctx, nil)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transaction"})
 				return
 			}
 
-			res, err := tx.Exec(`DELETE FROM events WHERE session_id = $1`, sid)
+			res, err := tx.ExecContext(ctx, `DELETE FROM events WHERE session_id = $1`, sid)
 			if err != nil {
 				tx.Rollback()
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete events"})
 				return
 			}
-			evCount, _ := res.RowsAffected()
+			evCount, err := res.RowsAffected()
+			if err != nil {
+				tx.Rollback()
+				log.Printf("rows affected error: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get deletion count"})
+				return
+			}
 
-			_, err = tx.Exec(`DELETE FROM sessions WHERE id = $1`, sid)
+			_, err = tx.ExecContext(ctx, `DELETE FROM sessions WHERE id = $1`, sid)
 			if err != nil {
 				tx.Rollback()
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete session"})
@@ -170,6 +184,13 @@ func DeleteUserData(cfg *config.Config) gin.HandlerFunc {
 			if err := tx.Commit(); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to commit deletion"})
 				return
+			}
+
+			// Only delete from storage after successful DB commit
+			for _, objKey := range objectsToDelete {
+				if err := cfg.Minio.RemoveObject(ctx, cfg.BucketName, objKey, minio.RemoveObjectOptions{}); err != nil {
+					log.Printf("failed to delete object %s from storage: %v", objKey, err)
+				}
 			}
 
 			deletedSessions++
@@ -197,7 +218,7 @@ func ListAuditLogs(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		projectID, _ := c.Get("project_id")
 
-		limit := 20
+		limit := defaultLimit
 		offset := 0
 		if l := c.Query("limit"); l != "" {
 			if n, err := strconv.Atoi(l); err == nil && n > 0 {
@@ -210,7 +231,10 @@ func ListAuditLogs(cfg *config.Config) gin.HandlerFunc {
 			}
 		}
 
-		rows, err := cfg.DB.Query(
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		rows, err := cfg.DB.QueryContext(ctx,
 			`SELECT id, project_id, action, actor, details, created_at FROM audit_logs WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 			projectID, limit, offset,
 		)
@@ -220,7 +244,7 @@ func ListAuditLogs(cfg *config.Config) gin.HandlerFunc {
 		}
 		defer rows.Close()
 
-		logs := []map[string]interface{}{}
+		var logs []map[string]interface{}
 		for rows.Next() {
 			var id int64
 			var pid string
@@ -230,6 +254,7 @@ func ListAuditLogs(cfg *config.Config) gin.HandlerFunc {
 			var createdAt time.Time
 
 			if err := rows.Scan(&id, &pid, &action, &actor, &details, &createdAt); err != nil {
+				log.Printf("scan audit log row: %v", err)
 				continue
 			}
 
@@ -244,7 +269,7 @@ func ListAuditLogs(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		var total int
-		err = cfg.DB.QueryRow(
+		err = cfg.DB.QueryRowContext(ctx,
 			`SELECT COUNT(*) FROM audit_logs WHERE project_id = $1`,
 			projectID,
 		).Scan(&total)

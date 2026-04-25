@@ -12,19 +12,23 @@ import (
 	"github.com/chronoscope/ingestion/internal/config"
 	"github.com/chronoscope/ingestion/internal/handlers"
 	"github.com/chronoscope/ingestion/internal/middleware"
+	sharedmw "github.com/chronoscope/pkg/middleware"
 	"github.com/gin-gonic/gin"
 )
 
-func main() {
-	cfg := config.Load()
-
+func NewRouter(cfg *config.Config) *gin.Engine {
 	router := gin.Default()
+	router.MaxMultipartMemory = 8 << 20 // 8 MiB
 
-	router.Use(middleware.CORS())
+	router.Use(sharedmw.CORS())
+	router.Use(func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 8<<20)
+		c.Next()
+	})
 
 	v1 := router.Group("/v1")
 	v1.Use(middleware.RateLimit(100, time.Minute))
-	v1.Use(middleware.APIKeyAuth(cfg.DB))
+	v1.Use(sharedmw.APIKeyAuth(cfg.DB))
 
 	v1.POST("/sessions/init", handlers.InitSession(cfg))
 	v1.POST("/sessions/:id/chunks", handlers.UploadChunk(cfg))
@@ -36,6 +40,14 @@ func main() {
 	v1.POST("/gdpr/export/:user_id", handlers.ExportUserData(cfg))
 	v1.DELETE("/gdpr/delete/:user_id", handlers.DeleteUserData(cfg))
 	v1.GET("/gdpr/audit-logs", handlers.ListAuditLogs(cfg))
+
+	return router
+}
+
+func main() {
+	cfg := config.Load()
+
+	router := NewRouter(cfg)
 
 	srv := &http.Server{
 		Addr:    cfg.ServerAddr,

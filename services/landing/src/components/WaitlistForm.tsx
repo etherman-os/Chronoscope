@@ -17,10 +17,15 @@ export default function WaitlistForm() {
     <div className="w-full max-w-md mx-auto">
       {submitted ? (
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-6 text-center">
-          <p className="text-emerald-400 font-medium text-lg">Thanks! We&apos;ll be in touch.</p>
+          <p className="text-emerald-400 font-medium text-lg">
+            Thanks! We&apos;ll be in touch.
+          </p>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col sm:flex-row gap-3"
+        >
           <input
             type="email"
             value={email}
@@ -31,7 +36,7 @@ export default function WaitlistForm() {
           />
           <button
             type="submit"
-            className="px-6 py-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium transition-colors whitespace-nowrap"
+            className="px-6 py-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           >
             Join Waitlist
           </button>

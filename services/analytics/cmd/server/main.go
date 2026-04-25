@@ -9,25 +9,38 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/chronoscope/analytics/internal/config"
 	"github.com/chronoscope/analytics/internal/handlers"
 	"github.com/chronoscope/analytics/internal/middleware"
+	sharedmw "github.com/chronoscope/pkg/middleware"
+	"github.com/gin-gonic/gin"
 )
 
-func main() {
-	cfg := config.Load()
+func NewRouter(cfg *config.Config) *gin.Engine {
 	router := gin.Default()
-	router.Use(middleware.CORS())
+	router.MaxMultipartMemory = 4 << 20 // 4 MiB
+
+	router.Use(sharedmw.CORS())
+	router.Use(func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1<<20)
+		c.Next()
+	})
 
 	v1 := router.Group("/v1")
 	v1.Use(middleware.RateLimit(100, time.Minute))
-	v1.Use(middleware.APIKeyAuth(cfg.DB))
+	v1.Use(sharedmw.APIKeyAuth(cfg.DB))
 	{
 		v1.GET("/analytics/heatmap", handlers.GetHeatmap(cfg))
 		v1.GET("/analytics/funnel", handlers.GetFunnel(cfg))
 		v1.GET("/analytics/sessions/stats", handlers.GetSessionStats(cfg))
 	}
+
+	return router
+}
+
+func main() {
+	cfg := config.Load()
+	router := NewRouter(cfg)
 
 	srv := &http.Server{
 		Addr:    ":8081",

@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"strconv"
+	"time"
 
+	_ "github.com/lib/pq"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	_ "github.com/lib/pq"
 )
 
 // Config holds application configuration and clients.
@@ -40,6 +42,22 @@ func Load() *Config {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 
+	maxOpenConns, _ := strconv.Atoi(os.Getenv("DB_MAX_OPEN_CONNS"))
+	if maxOpenConns == 0 {
+		maxOpenConns = 25
+	}
+	maxIdleConns, _ := strconv.Atoi(os.Getenv("DB_MAX_IDLE_CONNS"))
+	if maxIdleConns == 0 {
+		maxIdleConns = 5
+	}
+	connMaxLifetime, _ := strconv.Atoi(os.Getenv("DB_CONN_MAX_LIFETIME_MINUTES"))
+	if connMaxLifetime == 0 {
+		connMaxLifetime = 30
+	}
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxIdleConns)
+	db.SetConnMaxLifetime(time.Duration(connMaxLifetime) * time.Minute)
+
 	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
 	minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
 	minioSecretKey := os.Getenv("MINIO_SECRET_KEY")
@@ -48,9 +66,11 @@ func Load() *Config {
 		log.Fatal("MINIO_ENDPOINT, MINIO_ACCESS_KEY, and MINIO_SECRET_KEY are required")
 	}
 
+	secure := os.Getenv("MINIO_SECURE") == "true"
+
 	minioClient, err := minio.New(minioEndpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(minioAccessKey, minioSecretKey, ""),
-		Secure: false,
+		Secure: secure,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create MinIO client: %v", err)

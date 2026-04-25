@@ -1,6 +1,8 @@
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
+use crate::{PrivacyConfig, PrivacyEngine};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
-use crate::{PrivacyEngine, PrivacyConfig};
 
 /// Initialize privacy engine from JSON config string.
 /// Returns opaque pointer. Must be freed with chronoscope_privacy_free.
@@ -67,7 +69,9 @@ pub extern "C" fn chronoscope_privacy_process_text(
     let result = engine.process_text(&text_str);
     // SAFETY: CString::new returns Err only if result contains interior null bytes.
     // We map the error to null_mut() so the C caller can check for failure.
-    CString::new(result).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut())
+    CString::new(result)
+        .map(|s| s.into_raw())
+        .unwrap_or(std::ptr::null_mut())
 }
 
 /// Free a string returned by chronoscope_privacy_process_text.
@@ -76,7 +80,9 @@ pub extern "C" fn chronoscope_privacy_free_string(s: *mut c_char) {
     // SAFETY: We check for null before reconstructing the CString.
     // The caller must pass a pointer previously returned by chronoscope_privacy_process_text.
     if !s.is_null() {
-        unsafe { let _ = CString::from_raw(s); }
+        unsafe {
+            let _ = CString::from_raw(s);
+        }
     }
 }
 
@@ -86,6 +92,8 @@ pub extern "C" fn chronoscope_privacy_free(engine: *mut PrivacyEngine) {
     // SAFETY: We check for null before reconstructing the Box.
     // The caller must pass a pointer previously returned by chronoscope_privacy_init.
     if !engine.is_null() {
-        unsafe { let _ = Box::from_raw(engine); }
+        unsafe {
+            let _ = Box::from_raw(engine);
+        }
     }
 }

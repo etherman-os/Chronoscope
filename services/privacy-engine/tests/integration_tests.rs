@@ -1,4 +1,4 @@
-use chronoscope_privacy::{PrivacyEngine, PrivacyConfig, RedactionMode};
+use chronoscope_privacy::{PrivacyConfig, PrivacyEngine, RedactionMode};
 
 #[test]
 fn test_detect_email() {

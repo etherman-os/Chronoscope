@@ -1,5 +1,4 @@
 use anyhow::Result;
-use image::GenericImageView;
 use img_hash::HasherConfig;
 use std::path::PathBuf;
 
@@ -37,4 +36,19 @@ pub async fn deduplicate(chunk_paths: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
     .await?;
 
     Ok(unique)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_deduplicate_skips_invalid_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let bad_path = temp_dir.path().join("not_an_image.txt");
+        std::fs::write(&bad_path, "hello").unwrap();
+
+        let result = deduplicate(vec![bad_path]).await.unwrap();
+        assert!(result.is_empty());
+    }
 }

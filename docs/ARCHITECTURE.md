@@ -8,64 +8,63 @@ This document describes the high-level design, data flow, component interactions
 
 Chronoscope is a multi-service platform composed of:
 
-1. **Capture SDKs** -- embedded in desktop applications to record screen frames and user events.
-2. **Ingestion API** -- receives raw capture data, validates API keys, and stores metadata.
-3. **Video Processor** -- asynchronously processes video chunks (transcode, deduplicate, index).
-4. **Analytics API** -- serves aggregated metrics (heatmaps, funnels, session stats).
-5. **Web Dashboard** -- React-based UI for replaying sessions and exploring analytics.
-6. **Privacy Engine** -- Rust library for PII detection and frame redaction.
-7. **Landing Page** -- static Next.js site for marketing.
-
----
-
-## System Diagram
-
-```mermaid
-graph TD
-    subgraph "Client Layer"
-        A[Desktop App] -->|SDK| B[Ingestion API]
-    end
-
-    subgraph "API Layer"
-        B --> C[Rate Limiter]
-        C --> D[Auth Middleware]
-        D --> E[API Handlers]
-    end
-
-    subgraph "Storage Layer"
-        E --> F[(PostgreSQL)]
-        E --> G[MinIO Storage]
-    end
-
-    subgraph "Processing Layer"
-        G --> H[Video Processor]
-        H --> I[Privacy Engine]
-        I --> G
-        H --> F
-    end
-
-    subgraph "Consumer Layer"
-        J[Web Dashboard] --> B
-        J --> K[Analytics API]
-        K --> F
-    end
-```
+1. **Capture SDKs** — embedded in desktop applications to record screen frames and user events.
+2. **Ingestion API** — receives raw capture data, validates API keys, and stores metadata.
+3. **Video Processor** — asynchronously processes video chunks (transcode, deduplicate, index).
+4. **Analytics API** — serves aggregated metrics (heatmaps, funnels, session stats).
+5. **Web Dashboard** — React-based UI for replaying sessions and exploring analytics.
+6. **Privacy Engine** — Rust library for PII detection and frame redaction.
+7. **Landing Page** — static Next.js site for marketing.
 
 ---
 
 ## Data Flow
 
+```mermaid
+flowchart LR
+    subgraph Capture
+        SDK[Desktop SDK]
+    end
+
+    subgraph Ingestion
+        API[Ingestion API]
+        DB[(PostgreSQL)]
+        S3[MinIO Storage]
+    end
+
+    subgraph Processing
+        VP[Video Processor]
+        PE[Privacy Engine]
+    end
+
+    subgraph Consumption
+        WD[Web Dashboard]
+        AA[Analytics API]
+    end
+
+    SDK -->|HTTP/REST| API
+    API --> DB
+    API --> S3
+    S3 --> VP
+    VP --> PE
+    PE --> S3
+    VP --> DB
+    WD --> API
+    WD --> AA
+    AA --> DB
+```
+
 ### Capture Flow
 
 1. The **SDK** (Swift / C++ / Rust) captures frames and events locally.
-2. It buffers data and uploads it to the **Ingestion API** via HTTP/REST or Protobuf.
+2. It buffers data and uploads it to the **Ingestion API** via HTTP/REST.
 3. The API stores session metadata in **PostgreSQL** and raw video chunks in **MinIO**.
 4. A message is pushed to **Redis** to notify the **Processor**.
 
 ### Processing Flow
 
 1. The **Processor** (Rust) polls the Redis queue for new jobs.
-2. It downloads chunks from MinIO, transcodes them with **FFmpeg**, and deduplicates frames using **perceptual hashing** (`img_hash`).
+2. It downloads chunks from MinIO, transcodes them with **FFmpeg**, and deduplicates frames using **perceptual hashing**.
 3. The **Privacy Engine** detects and redacts PII in frames (blur, blackout, replace).
 4. Processed videos and event indexes are uploaded back to MinIO.
 5. PostgreSQL is updated with processed paths and durations.
@@ -84,238 +83,250 @@ graph TD
 
 ---
 
-## Component Descriptions
+## Component Diagram
 
-### Ingestion API (`services/ingestion/`)
+```mermaid
+flowchart TB
+    subgraph Client
+        A[macOS App]
+        B[Windows App]
+        C[Linux App]
+    end
 
-- **Role**: Entry point for all capture data.
-- **Tech**: Go 1.22, Gin, PostgreSQL, MinIO (via S3 SDK).
-- **Key Endpoints**:
-  - `POST /v1/sessions/init` -- start a session
-  - `POST /v1/sessions/{id}/chunks` -- upload video chunk
-  - `POST /v1/sessions/{id}/events` -- upload event batch
-  - `POST /v1/sessions/{id}/complete` -- finalize session
-  - `GET /v1/sessions` -- list sessions
-- **Middleware**: CORS, API key authentication, rate limiting, request validation.
+    subgraph Edge
+        N[Nginx / Load Balancer]
+    end
 
-### Analytics API (`services/analytics/`)
+    subgraph Services
+        I[Ingestion API<br/>Go + Gin]
+        An[Analytics API<br/>Go + Gin]
+        W[Web Dashboard<br/>React + Vite]
+        L[Landing Page<br/>Next.js]
+    end
 
-- **Role**: Aggregated metrics and reporting.
-- **Tech**: Go 1.22, Gin, PostgreSQL.
-- **Key Endpoints**:
-  - `GET /v1/analytics/heatmap` -- click heatmap data
-  - `GET /v1/analytics/funnel` -- funnel conversion data
-  - `GET /v1/analytics/sessions/stats` -- session summary stats
+    subgraph Data
+        P[(PostgreSQL)]
+        R[Redis]
+        M[MinIO]
+    end
 
-### Video Processor (`services/processor/`)
+    subgraph Workers
+        Pr[Video Processor<br/>Rust + FFmpeg]
+        Pe[Privacy Engine<br/>Rust C ABI]
+    end
 
-- **Role**: Background worker for video pipeline.
-- **Tech**: Rust, Tokio, FFmpeg, AWS S3 SDK, Redis.
-- **Modules**:
-  - `downloader.rs` -- fetch chunks from MinIO
-  - `encoder.rs` -- transcode with FFmpeg
-  - `deduplicator.rs` -- perceptual-hash frame dedup
-  - `uploader.rs` -- store processed output
-  - `indexer.rs` -- build event-time indexes
-  - `queue.rs` -- Redis job queue consumer
-
-### Privacy Engine (`services/privacy-engine/`)
-
-- **Role**: PII detection and frame redaction.
-- **Tech**: Rust, `image`, `regex`.
-- **Capabilities**:
-  - Detect credit cards, emails, passwords in OCR/text
-  - Redact frames (blur, blackout, replace)
-  - FFI bindings for SDK integration
-- **Modules**:
-  - `detector.rs` -- PII regex detection
-  - `redaction.rs` -- image manipulation
-  - `consent.rs` -- user consent tracking
-  - `audit.rs` -- audit log helpers
-  - `ffi.rs` -- C-compatible exports
-
-### Web Dashboard (`services/web/`)
-
-- **Role**: Session replay and management UI.
-- **Tech**: React 18, Vite, TypeScript, Canvas API.
-- **Features**:
-  - Session list with filters
-  - Canvas-based video player
-  - Event timeline overlay
-  - GDPR export/delete actions
-
-### Landing Page (`services/landing/`)
-
-- **Role**: Marketing site.
-- **Tech**: Next.js 14, Tailwind CSS, static export.
-
----
-
-## Security Boundaries
-
+    A --> N
+    B --> N
+    C --> N
+    N --> I
+    N --> An
+    N --> W
+    N --> L
+    I --> P
+    I --> M
+    An --> P
+    W --> I
+    W --> An
+    M --> Pr
+    Pr --> Pe
+    Pe --> M
+    Pr --> P
+    I --> R
+    Pr --> R
 ```
-+-------------------------------------------------+
-|                   Public Internet                |
-|  (TLS terminated at Load Balancer / Nginx)       |
-+-------------------------------------------------+
-                        |
-+-------------------------------------------------+
-|              DMZ / Edge Layer                    |
-|  - Nginx (SSL/TLS, rate limiting, WAF)           |
-|  - CDN (static assets)                           |
-+-------------------------------------------------+
-                        |
-+-------------------------------------------------+
-|              Application Layer                   |
-|  - Ingestion API (auth, input validation)        |
-|  - Analytics API (auth, read-only queries)       |
-|  - Web Dashboard (static, presigned URLs)        |
-+-------------------------------------------------+
-                        |
-+-------------------------------------------------+
-|              Data Layer (Private Network)        |
-|  - PostgreSQL (encrypted connections)            |
-|  - Redis (password auth, private subnet)         |
-|  - MinIO (signature v4, bucket policies)         |
-+-------------------------------------------------+
-                        |
-+-------------------------------------------------+
-|              Processing Layer (Private Network)  |
-|  - Video Processor (no public ingress)           |
-|  - Privacy Engine (library / sidecar)            |
-+-------------------------------------------------+
-```
-
-### Trust Boundaries
-
-1. **SDK to Ingestion API**: Authenticated via `X-API-Key`. TLS required in production.
-2. **API to Database**: PostgreSQL and MinIO credentials stored as environment variables; connections use SSL when configured.
-3. **Processor to Storage**: Processor uses IAM-style credentials with least-privilege bucket access.
-4. **Dashboard to Video**: Video URLs are time-limited presigned MinIO URLs; no direct bucket access.
 
 ---
 
 ## Database Schema
 
-### Core Tables
+```mermaid
+erDiagram
+    ORGANIZATIONS ||--o{ PROJECTS : has
+    PROJECTS ||--o{ SESSIONS : has
+    SESSIONS ||--o{ EVENTS : contains
+    PROJECTS ||--o{ AUDIT_LOGS : generates
 
-```sql
-organizations
--- id UUID PK
--- name VARCHAR
--- plan VARCHAR (free/enterprise)
--- created_at TIMESTAMPTZ
+    ORGANIZATIONS {
+        uuid id PK
+        string name
+        string plan
+        timestamp created_at
+    }
 
-projects
--- id UUID PK
--- org_id UUID FK
--- name VARCHAR
--- api_key_hash VARCHAR UNIQUE
--- privacy_config JSONB
--- retention_days INT
--- created_at TIMESTAMPTZ
+    PROJECTS {
+        uuid id PK
+        uuid org_id FK
+        string name
+        string api_key_hash
+        jsonb privacy_config
+        int retention_days
+        timestamp created_at
+    }
 
-sessions
--- id UUID PK
--- project_id UUID FK
--- user_id VARCHAR
--- duration_ms INT
--- video_path VARCHAR
--- event_count INT
--- error_count INT
--- metadata JSONB
--- status VARCHAR (capturing/processing/completed)
--- created_at TIMESTAMPTZ
--- completed_at TIMESTAMPTZ
--- processed_at TIMESTAMPTZ
+    SESSIONS {
+        uuid id PK
+        uuid project_id FK
+        string user_id
+        int duration_ms
+        string video_path
+        int event_count
+        int error_count
+        jsonb metadata
+        string status
+        timestamp created_at
+        timestamp completed_at
+        timestamp processed_at
+    }
 
-events
--- id BIGSERIAL PK
--- session_id UUID FK
--- event_type VARCHAR
--- timestamp_ms INT
--- x INT
--- y INT
--- target VARCHAR
--- payload JSONB
--- created_at TIMESTAMPTZ
+    EVENTS {
+        bigint id PK
+        uuid session_id FK
+        string event_type
+        int timestamp_ms
+        int x
+        int y
+        string target
+        jsonb payload
+        timestamp created_at
+    }
 
-audit_logs
--- id BIGSERIAL PK
--- project_id UUID FK
--- action VARCHAR
--- actor VARCHAR
--- details JSONB
--- created_at TIMESTAMPTZ
+    AUDIT_LOGS {
+        bigint id PK
+        uuid project_id FK
+        string action
+        string actor
+        jsonb details
+        timestamp created_at
+    }
 ```
 
 ### Indexes
 
-- `idx_events_session` -- fast event lookup per session
-- `idx_sessions_project` -- session list per project
-- `idx_sessions_created` -- time-range queries
-- `idx_audit_logs_project` -- audit queries per project
+- `idx_events_session` — fast event lookup per session
+- `idx_sessions_project` — session list per project
+- `idx_sessions_created` — time-range queries
+- `idx_audit_logs_project` — audit queries per project
+- `idx_audit_logs_created` — audit time-range queries
 
 ---
 
 ## API Contract Overview
 
-### REST (OpenAPI 3.0)
+### REST
 
-The ingestion contract is defined in [`protocols/api-contracts/ingestion.yaml`](../protocols/api-contracts/ingestion.yaml).
+The ingestion contract is defined in the Go handler source code under `services/ingestion/internal/handlers/` and `services/analytics/internal/handlers/`.
 
-**Authentication**: All endpoints require `X-API-Key` header.
+**Authentication**: All endpoints require the `X-API-Key` header. The key is hashed with SHA-256 before comparison against the `projects.api_key_hash` column.
 
 ### Protobuf
 
 The capture schema is defined in [`protocols/capture-schema/session.proto`](../protocols/capture-schema/session.proto).
 
 Messages:
-- `FrameChunk` -- video frame batch
-- `Event` / `EventBatch` -- user interaction events
-- `SessionMetadata` -- device and session context
+- `FrameChunk` — video frame batch
+- `Event` / `EventBatch` — user interaction events
+- `SessionMetadata` — device and session context
 
 ---
 
 ## Deployment Topology (Production)
 
-```
-+-------------+
-|   CDN       |
-| (Landing)   |
-+-------------+
-       |
-+------v------+      +--------------+
-|  Load Bal.  |----->|  Ingestion   |
-+-------------+      |  API (x3)    |
-       |             +--------------+
-+------v------+            |
-|  Web Dash   |            v
-|  (static)   |     +--------------+
-+-------------+     |  PostgreSQL  |
-                    |  (primary)   |
-                    +--------------+
-                           |
-                    +--------------+
-                    |    MinIO     |
-                    |   (cluster)  |
-                    +--------------+
-                           |
-                    +--------------+
-                    |   Redis      |
-                    |  (sentinel)  |
-                    +--------------+
-                           |
-                    +--------------+
-                    |  Processor   |
-                    |  workers     |
-                    +--------------+
+```mermaid
+flowchart TB
+    CDN[CDN<br/>Landing Page]
+    LB[Load Balancer<br/>Nginx + TLS]
+
+    subgraph API_Tier
+        I1[Ingestion API]
+        I2[Ingestion API]
+        I3[Ingestion API]
+        A1[Analytics API]
+    end
+
+    subgraph Data_Tier
+        PG[(PostgreSQL<br/>Primary)]
+        PG_R[(PostgreSQL<br/>Read Replica)]
+        RD[Redis<br/>Sentinel]
+        MN[MinIO<br/>Distributed]
+    end
+
+    subgraph Worker_Tier
+        P1[Processor]
+        P2[Processor]
+    end
+
+    CDN --> LB
+    LB --> I1
+    LB --> I2
+    LB --> I3
+    LB --> A1
+    I1 --> PG
+    I2 --> PG
+    I3 --> PG
+    I1 --> MN
+    I2 --> MN
+    I3 --> MN
+    A1 --> PG_R
+    PG --> RD
+    RD --> P1
+    RD --> P2
+    MN --> P1
+    MN --> P2
+    P1 --> MN
+    P2 --> MN
+    P1 --> PG
+    P2 --> PG
 ```
 
 - **Ingestion API**: Horizontally scalable stateless Go containers.
-- **Processor**: Long-running Rust workers consuming Redis queue.
+- **Analytics API**: Read-only queries; scales independently.
+- **Processor**: Long-running Rust workers consuming the Redis queue.
 - **PostgreSQL**: Primary + read replicas recommended for analytics.
 - **MinIO**: Distributed mode for high availability.
+
+---
+
+## Security Boundaries
+
+```
++------------------+
+| Public Internet  |
+| (TLS terminated) |
++------------------+
+         |
++------------------+
+| DMZ / Edge       |
+| - Nginx          |
+| - CDN            |
++------------------+
+         |
++------------------+
+| Application      |
+| - Ingestion API  |
+| - Analytics API  |
+| - Web Dashboard  |
++------------------+
+         |
++------------------+
+| Data (Private)   |
+| - PostgreSQL     |
+| - Redis          |
+| - MinIO          |
++------------------+
+         |
++------------------+
+| Processing       |
+| - Video Processor|
+| - Privacy Engine |
++------------------+
+```
+
+### Trust Boundaries
+
+1. **SDK to Ingestion API**: Authenticated via `X-API-Key`. TLS required in production.
+2. **API to Database**: PostgreSQL and MinIO credentials stored as environment variables.
+3. **Processor to Storage**: Processor uses IAM-style credentials with least-privilege bucket access.
+4. **Dashboard to Video**: Video URLs are served via MinIO presigned URLs; no direct bucket access.
 
 ---
 

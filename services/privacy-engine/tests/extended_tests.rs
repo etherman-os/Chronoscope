@@ -1,4 +1,4 @@
-use chronoscope_privacy::{PrivacyEngine, PrivacyConfig, RedactionMode};
+use chronoscope_privacy::{PrivacyConfig, PrivacyEngine, RedactionMode};
 use std::ffi::CString;
 use std::ptr;
 
@@ -79,7 +79,8 @@ fn test_ffi_null_safety() {
 
     // chronoscope_privacy_process_text with null engine should return null
     let text = CString::new("hello").unwrap();
-    let result = chronoscope_privacy::ffi::chronoscope_privacy_process_text(ptr::null_mut(), text.as_ptr());
+    let result =
+        chronoscope_privacy::ffi::chronoscope_privacy_process_text(ptr::null_mut(), text.as_ptr());
     assert!(result.is_null());
 
     // chronoscope_privacy_process_text with null text should return null

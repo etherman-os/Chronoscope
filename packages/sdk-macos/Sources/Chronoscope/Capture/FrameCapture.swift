@@ -4,27 +4,44 @@ import CoreImage
 import CoreVideo
 import CoreMedia
 import AppKit
+import OSLog
 
+private let logger = Logger(subsystem: "dev.chronoscope.sdk", category: "FrameCapture")
+
+/// Captures screen frames using ScreenCaptureKit.
 public actor FrameCapture: NSObject {
     private var stream: SCStream?
-    private var frameHandler: ((Data) -> Void)?
+    private var frameHandler: ((Data) async -> Void)?
     private let frameRate: Int
-
     private let privacyEngine: PrivacyEngine?
+    private var onError: ((Error) -> Void)?
 
+    /// Creates a new frame capture instance.
+    /// - Parameters:
+    ///   - frameRate: Target frame rate. Defaults to `10`.
+    ///   - privacyEngine: Optional privacy engine for frame redaction.
     public init(frameRate: Int = 10, privacyEngine: PrivacyEngine? = nil) {
         self.frameRate = frameRate
         self.privacyEngine = privacyEngine
         super.init()
     }
 
-    public func start(handler: @escaping (Data) -> Void) async {
+    /// Starts capturing frames.
+    /// - Parameters:
+    ///   - handler: Async closure called for each captured frame.
+    ///   - onError: Optional closure called when capture fails.
+    public func start(
+        handler: @escaping (Data) async -> Void,
+        onError: ((Error) -> Void)? = nil
+    ) async {
         self.frameHandler = handler
+        self.onError = onError
 
         do {
             let content = try await SCShareableContent.current
             guard let display = content.displays.first else {
-                print("No display found for capture")
+                logger.error("No display found for capture")
+                onError?(CaptureError.noDisplay)
                 return
             }
 
@@ -40,22 +57,34 @@ public actor FrameCapture: NSObject {
             try await newStream.startCapture()
             self.stream = newStream
         } catch {
-            print("Failed to start frame capture: \(error)")
+            logger.error("Failed to start frame capture: \(error.localizedDescription)")
+            onError?(error)
         }
     }
 
+    /// Stops capturing frames and tears down the stream.
     public func stop() async {
         if let stream = stream {
             try? await stream.stopCapture()
         }
         stream = nil
         frameHandler = nil
+        onError = nil
+    }
+
+    deinit {
+        if stream != nil {
+            logger.warning("FrameCapture deallocated without calling stop()")
+        }
     }
 }
 
 extension FrameCapture: SCStreamDelegate {
     nonisolated public func stream(_ stream: SCStream, didStopWithError error: Error) {
-        print("SCStream stopped with error: \(error)")
+        logger.error("SCStream stopped with error: \(error.localizedDescription)")
+        Task { [self] in
+            await self.onError?(error)
+        }
     }
 }
 
@@ -79,9 +108,19 @@ extension FrameCapture: SCStreamOutput {
 
         var frameData = Data(bytes: baseAddress, count: frameSize)
 
-        Task {
-            await privacyEngine?.processFrame(&frameData, width: UInt32(width), height: UInt32(height), stride: UInt32(stride))
-            guard let jpegData = encodeToJPEG(rgbaData: frameData, width: width, height: height, stride: stride) else { return }
+        Task { [self] in
+            await self.privacyEngine?.processFrame(
+                &frameData,
+                width: UInt32(width),
+                height: UInt32(height),
+                stride: UInt32(stride)
+            )
+            guard let jpegData = encodeToJPEG(
+                rgbaData: frameData,
+                width: width,
+                height: height,
+                stride: stride
+            ) else { return }
             await self.frameHandler?(jpegData)
         }
     }
@@ -102,6 +141,12 @@ private nonisolated func encodeToJPEG(rgbaData: Data, width: Int, height: Int, s
     ) else {
         return nil
     }
-    rgbaData.copyBytes(to: rep.bitmapData!, count: rgbaData.count)
+    guard let bitmapData = rep.bitmapData else { return nil }
+    rgbaData.copyBytes(to: bitmapData, count: rgbaData.count)
     return rep.representation(using: .jpeg, properties: [.compressionFactor: 0.7])
+}
+
+/// Local errors produced by FrameCapture.
+private enum CaptureError: Error {
+    case noDisplay
 }

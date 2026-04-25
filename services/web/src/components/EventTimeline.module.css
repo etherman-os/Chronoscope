@@ -1,0 +1,49 @@
+.container {
+  height: 60px;
+  background-color: #1e1e2e;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  max-width: 960px;
+  border: 1px solid #2a2a40;
+}
+
+.click {
+  position: absolute;
+  top: 0;
+  width: 4px;
+  height: 50%;
+  background-color: #ef4444;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  left: var(--left);
+}
+
+.scroll {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 50%;
+  background-color: #3b82f6;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  left: var(--left);
+}
+
+.indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: #22c55e;
+  transform: translateX(-50%);
+  z-index: 5;
+  left: var(--left);
+}
+
+@media (max-width: 768px) {
+  .container {
+    max-width: 100%;
+  }
+}

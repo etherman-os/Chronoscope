@@ -29,3 +29,23 @@ Thumbs.db
 *.so
 *.dll
 *.dylib
+
+# Generated / temp
+*.jar
+*.lock#
+*~
+.~lock.*
+
+# Test coverage
+coverage.out
+coverage/
+
+# Build output
+services/web/dist/
+services/landing/dist/
+
+# Audit & plans directories (keep .gitkeep)
+docs/audits/*
+!docs/audits/.gitkeep
+docs/plans/*
+!docs/plans/.gitkeep

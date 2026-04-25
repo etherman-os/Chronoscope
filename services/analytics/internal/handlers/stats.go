@@ -1,18 +1,19 @@
 package handlers
 
 import (
-	"database/sql"
+	"context"
 	"net/http"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/chronoscope/analytics/internal/config"
+	"github.com/gin-gonic/gin"
 )
 
 // SessionStats holds aggregate session statistics.
 type SessionStats struct {
-	AvgDurationMs      float64 `json:"avg_duration_ms"`
-	TotalSessions      int     `json:"total_sessions"`
-	TotalEvents        int     `json:"total_events"`
+	AvgDurationMs       float64 `json:"avg_duration_ms"`
+	TotalSessions       int     `json:"total_sessions"`
+	TotalEvents         int     `json:"total_events"`
 	AvgEventsPerSession float64 `json:"avg_events_per_session"`
 }
 
@@ -25,8 +26,11 @@ func GetSessionStats(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
 		var stats SessionStats
-		err := cfg.DB.QueryRow(`
+		err := cfg.DB.QueryRowContext(ctx, `
 			SELECT
 				COALESCE(AVG(duration_ms), 0),
 				COUNT(*),

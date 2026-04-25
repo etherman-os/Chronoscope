@@ -22,6 +22,11 @@ impl ChunkUploader {
         })
     }
 
+    #[cfg(test)]
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
     pub async fn upload_chunk(&self, data: Vec<u8>, index: u32) -> anyhow::Result<()> {
         let url = format!("{}/v1/sessions/{}/chunks", self.endpoint, self.session_id);
 
@@ -41,11 +46,9 @@ impl ChunkUploader {
             .await?;
 
         if !response.status().is_success() {
-            anyhow::bail!(
-                "Upload failed: {} - {}",
-                response.status(),
-                response.text().await.unwrap_or_default()
-            );
+            let status = response.status();
+            let body = response.text().await.unwrap_or_else(|_| String::new());
+            anyhow::bail!("Upload failed: {} - {}", status, body);
         }
 
         tracing::info!("Uploaded chunk {} for session {}", index, self.session_id);
@@ -63,14 +66,41 @@ impl ChunkUploader {
             .await?;
 
         if !response.status().is_success() {
-            anyhow::bail!(
-                "Finalize failed: {} - {}",
-                response.status(),
-                response.text().await.unwrap_or_default()
-            );
+            let status = response.status();
+            let body = response.text().await.unwrap_or_else(|_| String::new());
+            anyhow::bail!("Finalize failed: {} - {}", status, body);
         }
 
         tracing::info!("Finalized session {}", self.session_id);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::CaptureConfig;
+
+    #[test]
+    fn test_chunk_uploader_new() {
+        let config = CaptureConfig::new("test_key", "http://localhost:8080");
+        let uploader = ChunkUploader::new(&config).unwrap();
+        assert!(!uploader.session_id().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_upload_chunk_network_error() {
+        let config = CaptureConfig::new("test_key", "http://localhost:1");
+        let uploader = ChunkUploader::new(&config).unwrap();
+        let result = uploader.upload_chunk(vec![0u8; 100], 0).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_finalize_network_error() {
+        let config = CaptureConfig::new("test_key", "http://localhost:1");
+        let uploader = ChunkUploader::new(&config).unwrap();
+        let result = uploader.finalize().await;
+        assert!(result.is_err());
     }
 }

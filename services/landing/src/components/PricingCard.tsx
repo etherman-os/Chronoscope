@@ -39,7 +39,8 @@ export default function PricingCard({
         ))}
       </ul>
       <button
-        className={`w-full py-2.5 rounded-lg font-medium transition-colors ${
+        type="button"
+        className={`w-full py-2.5 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ${
           highlighted
             ? "bg-brand-600 hover:bg-brand-700 text-white"
             : "bg-slate-700 hover:bg-slate-600 text-white"

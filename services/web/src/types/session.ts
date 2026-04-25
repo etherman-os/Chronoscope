@@ -8,6 +8,7 @@ export interface Session {
 }
 
 export interface SessionEvent {
+  id?: string;
   event_type: string;
   timestamp_ms: number;
   x: number;

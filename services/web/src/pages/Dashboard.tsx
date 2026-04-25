@@ -1,12 +1,15 @@
-import React, { useState, useCallback } from 'react';
-import { SessionList } from '../components/SessionList';
-import { VideoPlayer } from '../components/VideoPlayer';
-import { EventTimeline } from '../components/EventTimeline';
-import { Session, SessionDetail } from '../types/session';
-import { getSession } from '../api/client';
+import React, { useState, useCallback } from "react";
+import { SessionList } from "../components/SessionList";
+import { VideoPlayer } from "../components/VideoPlayer";
+import { EventTimeline } from "../components/EventTimeline";
+import { Session, SessionDetail } from "../types/session";
+import { getSession } from "../api/client";
+import styles from "./Dashboard.module.css";
 
 export const Dashboard: React.FC = () => {
-  const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null);
+  const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(
+    null,
+  );
   const [currentTime, setCurrentTime] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +22,8 @@ export const Dashboard: React.FC = () => {
       setSelectedSession(detail);
       setCurrentTime(0);
     } catch (err) {
-      setError('Failed to load session details');
+      console.error("Failed to load session details:", err);
+      setError("Failed to load session details");
     } finally {
       setLoading(false);
     }
@@ -30,78 +34,29 @@ export const Dashboard: React.FC = () => {
   }, []);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        height: '100vh',
-        fontFamily: 'system-ui, sans-serif',
-      }}
-    >
+    <div className={styles.container}>
       <SessionList onSelect={handleSelect} />
 
-      <div
-        style={{
-          flex: 1,
-          backgroundColor: '#f5f5f5',
-          padding: '24px',
-          overflowY: 'auto',
-        }}
-      >
+      <div className={styles.main}>
         {!selectedSession && !loading && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              color: '#666',
-              fontSize: '18px',
-            }}
-          >
+          <div className={styles.centerMessage}>
             Select a session to view replay
           </div>
         )}
 
         {loading && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              color: '#666',
-              fontSize: '18px',
-            }}
-          >
-            Loading session details...
-          </div>
+          <div className={styles.centerMessage}>Loading session details...</div>
         )}
 
         {error && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              color: '#e74c3c',
-              fontSize: '18px',
-            }}
-          >
+          <div className={`${styles.centerMessage} ${styles.error}`}>
             {error}
           </div>
         )}
 
         {selectedSession && !loading && (
           <div>
-            <h2
-              style={{
-                margin: '0 0 16px 0',
-                fontSize: '20px',
-                fontWeight: 600,
-                color: '#333',
-              }}
-            >
+            <h2 className={styles.title}>
               Session: {selectedSession.session.id}
             </h2>
 

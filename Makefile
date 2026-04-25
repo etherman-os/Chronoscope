@@ -2,7 +2,7 @@
 
 # Docker Compose
 up:
-	docker compose -f docker/docker-compose.yml up -d
+	docker compose -f docker/docker-compose.yml up -d --build
 
 down:
 	docker compose -f docker/docker-compose.yml down
@@ -14,6 +14,10 @@ swift_out := packages/sdk-macos/Sources/Chronoscope/Core
 default_proto := $(default_proto_dir)/session.proto
 
 proto:
+	@command -v protoc >/dev/null 2>&1 || { echo "protoc is required but not installed"; exit 1; }
+	@command -v protoc-gen-go >/dev/null 2>&1 || { echo "protoc-gen-go is required but not installed"; exit 1; }
+	@command -v protoc-gen-go-grpc >/dev/null 2>&1 || { echo "protoc-gen-go-grpc is required but not installed"; exit 1; }
+	@command -v protoc-gen-swift >/dev/null 2>&1 || { echo "protoc-gen-swift is required but not installed"; exit 1; }
 	@echo "Generating Go code from protobuf..."
 	protoc --go_out=. --go_opt=paths=source_relative \
 		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
@@ -26,12 +30,14 @@ proto:
 
 # Testing
 test:
-	@echo "Running ingestion service tests..."
-	cd services/ingestion && go test ./...
-	@echo "Running analytics service tests..."
-	cd services/analytics && go test ./...
-	@echo "Running SDK macOS tests..."
-	cd packages/sdk-macos && swift test
+	@failed=0; \
+	echo "Running ingestion service tests..."; \
+	cd services/ingestion && go test ./... || failed=1; \
+	echo "Running analytics service tests..."; \
+	cd services/analytics && go test ./... || failed=1; \
+	echo "Running SDK macOS tests..."; \
+	cd packages/sdk-macos && swift test || failed=1; \
+	exit $$failed
 
 # Linting
 lint:

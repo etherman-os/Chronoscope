@@ -3,8 +3,16 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Chronoscope — Session Replay for Desktop Apps",
-  description: "Free, open source session replay infrastructure for macOS, Windows, and Linux desktop applications.",
-  keywords: ["session replay", "desktop apps", "macOS", "Windows", "Linux", "open source"],
+  description:
+    "Free, open source session replay infrastructure for macOS, Windows, and Linux desktop applications.",
+  keywords: [
+    "session replay",
+    "desktop apps",
+    "macOS",
+    "Windows",
+    "Linux",
+    "open source",
+  ],
   openGraph: {
     title: "Chronoscope — Session Replay for Desktop Apps",
     description: "See every click. Fix every bug. Free and open source.",
@@ -17,7 +25,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>{children}</body>

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -14,6 +15,10 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	defaultLimit = 20
+)
+
 type initSessionRequest struct {
 	UserID      string                 `json:"user_id" binding:"required"`
 	CaptureMode string                 `json:"capture_mode" binding:"required"`
@@ -23,13 +28,17 @@ type initSessionRequest struct {
 type initSessionResponse struct {
 	SessionID string    `json:"session_id"`
 	UploadURL string    `json:"upload_url"`
-	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // InitSession creates a new capture session.
 func InitSession(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.GetHeader("Content-Type") != "application/json" {
+			c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "Content-Type must be application/json"})
+			return
+		}
+
 		var req initSessionRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -52,7 +61,10 @@ func InitSession(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		_, err = cfg.DB.Exec(
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		_, err = cfg.DB.ExecContext(ctx,
 			`INSERT INTO sessions (id, project_id, user_id, status, metadata, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
 			sessionID,
 			projectID,
@@ -72,13 +84,11 @@ func InitSession(cfg *config.Config) gin.HandlerFunc {
 			}
 		}
 
-		token := uuid.New().String()
 		expiresAt := time.Now().Add(1 * time.Hour)
 
 		c.JSON(http.StatusCreated, initSessionResponse{
 			SessionID: sessionID,
 			UploadURL: "/v1/sessions/" + sessionID + "/chunks",
-			Token:     token,
 			ExpiresAt: expiresAt,
 		})
 	}
@@ -98,7 +108,7 @@ func ListSessions(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		limit := 20
+		limit := defaultLimit
 		offset := 0
 		if l := c.Query("limit"); l != "" {
 			if n, err := strconv.Atoi(l); err == nil && n > 0 {
@@ -111,7 +121,10 @@ func ListSessions(cfg *config.Config) gin.HandlerFunc {
 			}
 		}
 
-		rows, err := cfg.DB.Query(
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		rows, err := cfg.DB.QueryContext(ctx,
 			`SELECT id, project_id, user_id, duration_ms, video_path, event_count, error_count, metadata, status, created_at, completed_at FROM sessions WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 			pid, limit, offset,
 		)
@@ -121,11 +134,12 @@ func ListSessions(cfg *config.Config) gin.HandlerFunc {
 		}
 		defer rows.Close()
 
-		sessions := []models.Session{}
+		var sessions []models.Session
 		for rows.Next() {
 			var s models.Session
 			err := rows.Scan(&s.ID, &s.ProjectID, &s.UserID, &s.DurationMs, &s.VideoPath, &s.EventCount, &s.ErrorCount, &s.Metadata, &s.Status, &s.CreatedAt, &s.CompletedAt)
 			if err != nil {
+				log.Printf("scan session row: %v", err)
 				continue
 			}
 			sessions = append(sessions, s)
@@ -143,8 +157,11 @@ func GetSession(cfg *config.Config) gin.HandlerFunc {
 		authenticatedProjectID, _ := c.Get("project_id")
 		authPID, _ := authenticatedProjectID.(string)
 
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
 		var s models.Session
-		err := cfg.DB.QueryRow(
+		err := cfg.DB.QueryRowContext(ctx,
 			`SELECT id, project_id, user_id, duration_ms, video_path, event_count, error_count, metadata, status, created_at, completed_at FROM sessions WHERE id = $1`,
 			sessionID,
 		).Scan(&s.ID, &s.ProjectID, &s.UserID, &s.DurationMs, &s.VideoPath, &s.EventCount, &s.ErrorCount, &s.Metadata, &s.Status, &s.CreatedAt, &s.CompletedAt)
@@ -162,7 +179,7 @@ func GetSession(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		rows, err := cfg.DB.Query(
+		rows, err := cfg.DB.QueryContext(ctx,
 			`SELECT id, session_id, event_type, timestamp_ms, x, y, target, payload, created_at FROM events WHERE session_id = $1 ORDER BY timestamp_ms ASC`,
 			sessionID,
 		)
@@ -172,7 +189,7 @@ func GetSession(cfg *config.Config) gin.HandlerFunc {
 		}
 		defer rows.Close()
 
-		events := []map[string]interface{}{}
+		var events []map[string]interface{}
 		for rows.Next() {
 			var eventID int64
 			var sid string
@@ -185,6 +202,7 @@ func GetSession(cfg *config.Config) gin.HandlerFunc {
 
 			err := rows.Scan(&eventID, &sid, &eventType, &timestampMs, &x, &y, &target, &payload, &createdAt)
 			if err != nil {
+				log.Printf("scan event row: %v", err)
 				continue
 			}
 

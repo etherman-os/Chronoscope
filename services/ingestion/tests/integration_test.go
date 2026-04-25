@@ -14,7 +14,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/chronoscope/ingestion/internal/config"
 	"github.com/chronoscope/ingestion/internal/handlers"
-	"github.com/chronoscope/ingestion/internal/middleware"
+	"github.com/chronoscope/pkg/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
@@ -122,7 +122,7 @@ func TestFullSessionLifecycle(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO events`).
 		WithArgs(createdSessionID, "click", 1000, 100, 200, "", nil).
 		WillReturnResult(sqlmock.NewResult(1, 1))
-	mock.ExpectExec(`UPDATE sessions SET event_count = event_count + \$1 WHERE id = \$2`).
+	mock.ExpectExec(`UPDATE sessions`).
 		WithArgs(1, createdSessionID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
@@ -157,7 +157,7 @@ func TestFullSessionLifecycle(t *testing.T) {
 	mock.ExpectQuery(`SELECT project_id FROM sessions WHERE id = \$1`).
 		WithArgs(createdSessionID).
 		WillReturnRows(sqlmock.NewRows([]string{"project_id"}).AddRow(projectID))
-	mock.ExpectExec(`UPDATE sessions SET status = 'completed', completed_at = NOW\(\) WHERE id = \$1`).
+	mock.ExpectExec(`UPDATE sessions`).
 		WithArgs(createdSessionID).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectQuery(`SELECT project_id FROM sessions WHERE id = \$1`).

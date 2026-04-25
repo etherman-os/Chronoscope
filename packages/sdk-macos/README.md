@@ -32,7 +32,6 @@ let config = CaptureConfig(
     apiKey: "your-api-key",
     endpoint: URL(string: "https://api.chronoscope.dev/v1")!,
     captureMode: .hybrid,
-    quality: .medium,
     frameRate: 10
 )
 
@@ -55,16 +54,11 @@ The SDK includes a `PrivacyEngine` for future PII masking capabilities.
 
 ## Building with Privacy Engine
 
-1. Build the privacy engine first:
-   ```bash
-   cd ../../services/privacy-engine
-   cargo build --release
-   ```
+The SDK links against `libchronoscope_privacy` via the `ChronoscopePrivacyC` system-library target. Ensure the library is available in the linker search path (e.g., via `LD_LIBRARY_PATH` or by vendoring the binary into the package), then build:
 
-2. Build the macOS SDK:
-   ```bash
-   swift build
-   ```
+```bash
+swift build
+```
 
 ## License
 

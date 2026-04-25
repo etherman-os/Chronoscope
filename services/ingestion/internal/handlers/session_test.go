@@ -201,6 +201,51 @@ func TestListSessions(t *testing.T) {
 			t.Errorf("expected status %d, got %d: %s", http.StatusForbidden, w.Code, w.Body.String())
 		}
 	})
+
+	t.Run("database error returns 500", func(t *testing.T) {
+		cfg, mock := setupTestConfig(t)
+		defer cfg.DB.Close()
+
+		projectID := uuid.New().String()
+		mock.ExpectQuery(`SELECT .* FROM sessions WHERE project_id = \$1 ORDER BY created_at DESC LIMIT \$2 OFFSET \$3`).
+			WithArgs(projectID, 20, 0).
+			WillReturnError(sql.ErrConnDone)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("project_id", projectID)
+		c.Request, _ = http.NewRequest("GET", "/v1/sessions?project_id="+projectID, nil)
+
+		ListSessions(cfg)(c)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d: %s", http.StatusInternalServerError, w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("custom limit and offset", func(t *testing.T) {
+		cfg, mock := setupTestConfig(t)
+		defer cfg.DB.Close()
+
+		projectID := uuid.New().String()
+		rows := sqlmock.NewRows([]string{"id", "project_id", "user_id", "duration_ms", "video_path", "event_count", "error_count", "metadata", "status", "created_at", "completed_at"}).
+			AddRow(uuid.New().String(), projectID, "user-1", nil, nil, 10, 0, nil, "completed", time.Now(), nil)
+
+		mock.ExpectQuery(`SELECT .* FROM sessions WHERE project_id = \$1 ORDER BY created_at DESC LIMIT \$2 OFFSET \$3`).
+			WithArgs(projectID, 5, 10).
+			WillReturnRows(rows)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("project_id", projectID)
+		c.Request, _ = http.NewRequest("GET", "/v1/sessions?limit=5&offset=10", nil)
+
+		ListSessions(cfg)(c)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d: %s", http.StatusOK, w.Code, w.Body.String())
+		}
+	})
 }
 
 func TestGetSession(t *testing.T) {
@@ -269,6 +314,105 @@ func TestGetSession(t *testing.T) {
 		events, ok := resp["events"].([]interface{})
 		if !ok || len(events) != 2 {
 			t.Errorf("expected 2 events, got %v", resp["events"])
+		}
+	})
+
+	t.Run("database error on session query returns 500", func(t *testing.T) {
+		cfg, mock := setupTestConfig(t)
+		defer cfg.DB.Close()
+
+		projectID := uuid.New().String()
+		sessionID := uuid.New().String()
+		mock.ExpectQuery(`SELECT .* FROM sessions WHERE id = \$1`).
+			WithArgs(sessionID).
+			WillReturnError(sql.ErrConnDone)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("project_id", projectID)
+		c.Params = gin.Params{{Key: "id", Value: sessionID}}
+		c.Request, _ = http.NewRequest("GET", "/v1/sessions/"+sessionID, nil)
+
+		GetSession(cfg)(c)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+	})
+
+	t.Run("database error on events query returns 500", func(t *testing.T) {
+		cfg, mock := setupTestConfig(t)
+		defer cfg.DB.Close()
+
+		projectID := uuid.New().String()
+		sessionID := uuid.New().String()
+
+		sessionRows := sqlmock.NewRows([]string{"id", "project_id", "user_id", "duration_ms", "video_path", "event_count", "error_count", "metadata", "status", "created_at", "completed_at"}).
+			AddRow(sessionID, projectID, "user-1", nil, nil, 2, 0, nil, "capturing", time.Now(), nil)
+		mock.ExpectQuery(`SELECT .* FROM sessions WHERE id = \$1`).
+			WithArgs(sessionID).
+			WillReturnRows(sessionRows)
+		mock.ExpectQuery(`SELECT .* FROM events WHERE session_id = \$1 ORDER BY timestamp_ms ASC`).
+			WithArgs(sessionID).
+			WillReturnError(sql.ErrConnDone)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("project_id", projectID)
+		c.Params = gin.Params{{Key: "id", Value: sessionID}}
+		c.Request, _ = http.NewRequest("GET", "/v1/sessions/"+sessionID, nil)
+
+		GetSession(cfg)(c)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+	})
+}
+
+func TestInitSessionErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("missing content-type returns 415", func(t *testing.T) {
+		cfg, _ := setupTestConfig(t)
+		defer cfg.DB.Close()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("project_id", uuid.New().String())
+		body, _ := json.Marshal(map[string]interface{}{"user_id": "u1", "capture_mode": "video"})
+		c.Request, _ = http.NewRequest("POST", "/v1/sessions/init", bytes.NewReader(body))
+
+		InitSession(cfg)(c)
+
+		if w.Code != http.StatusUnsupportedMediaType {
+			t.Errorf("expected status %d, got %d", http.StatusUnsupportedMediaType, w.Code)
+		}
+	})
+
+	t.Run("database error returns 500", func(t *testing.T) {
+		cfg, mock := setupTestConfig(t)
+		defer cfg.DB.Close()
+
+		projectID := uuid.New().String()
+		mock.ExpectExec(`INSERT INTO sessions`).
+			WithArgs(sqlmock.AnyArg(), projectID, "user-123", "capturing", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WillReturnError(sql.ErrConnDone)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("project_id", projectID)
+		body, _ := json.Marshal(map[string]interface{}{
+			"user_id":      "user-123",
+			"capture_mode": "video",
+		})
+		c.Request, _ = http.NewRequest("POST", "/v1/sessions/init", bytes.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		InitSession(cfg)(c)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status %d, got %d", http.StatusInternalServerError, w.Code)
 		}
 	})
 }

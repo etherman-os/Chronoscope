@@ -12,23 +12,13 @@
 
 ```bash
 git clone https://github.com/etherman-os/chronoscope.git && cd chronoscope
-make up                          # Start infrastructure
-cd services/ingestion && cp .env.example .env && go run cmd/server/main.go
-cd services/web && npm install && npm run dev
-# Open http://localhost:3000
+make up                          # Start Postgres, Redis, MinIO
+cd services/ingestion && go run cmd/server/main.go
 ```
 
+Open the dashboard at `http://localhost:5173` after running `cd services/web && npm install && npm run dev`.
+
 See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full 5-minute guide.
-
----
-
-## Features
-
-- :movie_camera: **Cross-platform capture** — macOS, Windows, Linux SDKs
-- :arrows_counterclockwise: **Session replay** — video + event timeline overlay
-- :bar_chart: **Analytics** — heatmaps, funnels, session stats
-- :lock: **Privacy-first** — PII masking, GDPR export/delete, audit logs
-- :rocket: **Self-hosted** — Docker Compose, single node or clustered
 
 ---
 
@@ -48,15 +38,18 @@ graph TD
     H[Privacy Engine] --> E
 ```
 
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
+
 ---
 
 ## Documentation
 
-- [Quick Start](docs/QUICKSTART.md) — 5-minute setup
-- [API Reference](docs/API.md) — REST endpoints and examples
-- [Architecture](docs/ARCHITECTURE.md) — System design and data flow
-- [Deployment](docs/DEPLOYMENT.md) — Production deployment guide
-- [Security](docs/SECURITY.md) — Security policy and best practices
+- [Quick Start](docs/QUICKSTART.md) — 5-minute local setup
+- [Architecture](docs/ARCHITECTURE.md) — Data flow and component diagrams
+- [API Reference](docs/API.md) — REST endpoints with cURL examples
+- [SDK Integration](docs/SDK_INTEGRATION.md) — Embed capture SDKs
+- [Deployment](docs/DEPLOYMENT.md) — Production Docker Compose and SSL
+- [Security](docs/SECURITY.md) — Security policy and hardening
 - [Contributing](docs/CONTRIBUTING.md) — Development setup and PR process
 
 ## Contributing

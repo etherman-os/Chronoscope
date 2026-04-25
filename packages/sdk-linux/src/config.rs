@@ -22,11 +22,11 @@ pub enum CaptureQuality {
     High,
 }
 
-impl Default for CaptureConfig {
-    fn default() -> Self {
+impl CaptureConfig {
+    pub fn new(api_key: impl Into<String>, endpoint: impl Into<String>) -> Self {
         Self {
-            api_key: String::new(),
-            endpoint: "http://localhost:8080".to_string(),
+            api_key: api_key.into(),
+            endpoint: endpoint.into(),
             capture_mode: CaptureMode::Hybrid,
             quality: CaptureQuality::Medium,
             frame_rate: 10,

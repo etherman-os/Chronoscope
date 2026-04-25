@@ -3,11 +3,7 @@ use anyhow::Result;
 use aws_sdk_s3::primitives::ByteStream;
 use std::path::Path;
 
-pub async fn upload_video(
-    config: &Config,
-    session_id: &str,
-    video_path: &Path,
-) -> Result<()> {
+pub async fn upload_video(config: &Config, session_id: &str, video_path: &Path) -> Result<()> {
     let body = ByteStream::from_path(video_path).await?;
     let key = format!("{}/session.mp4", session_id);
 

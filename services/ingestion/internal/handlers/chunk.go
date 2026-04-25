@@ -5,13 +5,17 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/chronoscope/ingestion/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/minio/minio-go/v7"
 )
 
-const maxChunkSize = 2 << 20 // 2 MiB
+const (
+	maxChunkSize  = 2 << 20 // 2 MiB
+	maxChunkIndex = 10000
+)
 
 // UploadChunk handles multipart chunk uploads to MinIO.
 func UploadChunk(cfg *config.Config) gin.HandlerFunc {
@@ -20,8 +24,12 @@ func UploadChunk(cfg *config.Config) gin.HandlerFunc {
 
 		authenticatedProjectID, _ := c.Get("project_id")
 		authPID, _ := authenticatedProjectID.(string)
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
 		var ownerProjectID string
-		err := cfg.DB.QueryRow(`SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&ownerProjectID)
+		err := cfg.DB.QueryRowContext(ctx, `SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&ownerProjectID)
 		if err != nil || ownerProjectID != authPID {
 			c.JSON(http.StatusForbidden, gin.H{"error": "session does not belong to project"})
 			return
@@ -34,7 +42,7 @@ func UploadChunk(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		chunkIndex, err := strconv.Atoi(chunkIndexStr)
-		if err != nil || chunkIndex < 0 {
+		if err != nil || chunkIndex < 0 || chunkIndex >= maxChunkIndex {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid X-Chunk-Index"})
 			return
 		}
@@ -53,7 +61,7 @@ func UploadChunk(cfg *config.Config) gin.HandlerFunc {
 
 		objectName := sessionID + "/chunk_" + strconv.Itoa(chunkIndex) + ".jpg"
 
-		_, err = cfg.Minio.PutObject(context.Background(), cfg.BucketName, objectName, file, -1, minio.PutObjectOptions{
+		_, err = cfg.Minio.PutObject(ctx, cfg.BucketName, objectName, file, -1, minio.PutObjectOptions{
 			ContentType: "image/jpeg",
 		})
 		if err != nil {
@@ -62,7 +70,7 @@ func UploadChunk(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		var projectID string
-		if err := cfg.DB.QueryRow(`SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&projectID); err == nil {
+		if err := cfg.DB.QueryRowContext(ctx, `SELECT project_id FROM sessions WHERE id = $1`, sessionID).Scan(&projectID); err == nil {
 			if err := LogAudit(cfg, projectID, "chunk_uploaded", "", map[string]interface{}{"session_id": sessionID, "chunk_index": chunkIndex}); err != nil {
 				log.Printf("audit log failed: %v", err)
 			}

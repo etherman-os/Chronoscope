@@ -1,4 +1,4 @@
-use chronoscope_sdk_linux::{CaptureConfig, LinuxCapture, detect_display_server};
+use chronoscope_sdk_linux::detect_display_server;
 
 #[tokio::test]
 async fn test_detect_display_server() {
@@ -17,7 +17,7 @@ async fn test_detect_display_server() {
     std::env::set_var("WAYLAND_DISPLAY", "wayland-1");
     let server = detect_display_server().unwrap();
     match server {
-        chronoscope_sdk_linux::DisplayServer::Wayland => {},
+        chronoscope_sdk_linux::DisplayServer::Wayland => {}
         _ => panic!("Expected Wayland"),
     }
 
@@ -26,7 +26,7 @@ async fn test_detect_display_server() {
     std::env::set_var("DISPLAY", ":0");
     let server = detect_display_server().unwrap();
     match server {
-        chronoscope_sdk_linux::DisplayServer::X11 => {},
+        chronoscope_sdk_linux::DisplayServer::X11 => {}
         _ => panic!("Expected X11"),
     }
 
@@ -42,23 +42,12 @@ async fn test_detect_display_server() {
 }
 
 #[tokio::test]
-async fn test_circular_buffer() {
-    use chronoscope_sdk_linux::buffer::CircularBuffer;
+async fn test_linux_capture_lifecycle() {
+    use chronoscope_sdk_linux::{CaptureConfig, LinuxCapture};
 
-    let mut buf = CircularBuffer::new(10);
-    assert!(buf.is_empty());
+    let config = CaptureConfig::new("test_api_key", "http://localhost:8080");
+    let mut capture = LinuxCapture::new(config).unwrap();
 
-    buf.write(b"hello");
-    assert_eq!(buf.len(), 5);
-
-    let data = buf.read_chunk().unwrap();
-    assert_eq!(data, b"hello");
-    assert!(buf.is_empty());
-
-    // Test wrap-around
-    let mut buf = CircularBuffer::new(5);
-    buf.write(b"hello");
-    buf.write(b"world");
-    let data = buf.read_chunk().unwrap();
-    assert_eq!(data, b"world");
+    // stop() should not panic even if start() was never called
+    assert!(capture.stop().await.is_ok());
 }

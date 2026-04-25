@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/chronoscope/analytics/internal/config"
+	"github.com/gin-gonic/gin"
 )
 
 // FunnelStage represents a single stage in the session completion funnel.
@@ -22,8 +24,11 @@ func GetFunnel(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
 		var totalSessions int
-		err := cfg.DB.QueryRow(
+		err := cfg.DB.QueryRowContext(ctx,
 			"SELECT COUNT(*) FROM sessions WHERE project_id = $1",
 			projectID,
 		).Scan(&totalSessions)
@@ -33,7 +38,7 @@ func GetFunnel(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		var sessionsWithEvents int
-		err = cfg.DB.QueryRow(`
+		err = cfg.DB.QueryRowContext(ctx, `
 			SELECT COUNT(DISTINCT s.id)
 			FROM sessions s
 			JOIN events e ON s.id = e.session_id
@@ -45,7 +50,7 @@ func GetFunnel(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		var sessionsWithChunks int
-		err = cfg.DB.QueryRow(`
+		err = cfg.DB.QueryRowContext(ctx, `
 			SELECT COUNT(*) FROM sessions
 			WHERE project_id = $1 AND video_path IS NOT NULL AND video_path != ''
 		`, projectID).Scan(&sessionsWithChunks)
@@ -55,7 +60,7 @@ func GetFunnel(cfg *config.Config) gin.HandlerFunc {
 		}
 
 		var completedSessions int
-		err = cfg.DB.QueryRow(
+		err = cfg.DB.QueryRowContext(ctx,
 			"SELECT COUNT(*) FROM sessions WHERE project_id = $1 AND status = 'completed'",
 			projectID,
 		).Scan(&completedSessions)

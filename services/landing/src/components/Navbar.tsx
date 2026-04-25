@@ -19,7 +19,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           <button
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="text-xl font-bold text-white tracking-tight hover:text-brand-400 transition-colors"
+            className="text-xl font-bold text-white tracking-tight hover:text-brand-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:rounded"
           >
             Chronoscope
           </button>
@@ -28,13 +28,13 @@ export default function Navbar() {
           <div className="hidden md:flex items-center space-x-8">
             <button
               onClick={() => scrollTo("features")}
-              className="text-slate-300 hover:text-white transition-colors"
+              className="text-slate-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:rounded"
             >
               Features
             </button>
             <button
               onClick={() => scrollTo("pricing")}
-              className="text-slate-300 hover:text-white transition-colors"
+              className="text-slate-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:rounded"
             >
               Pricing
             </button>
@@ -42,7 +42,7 @@ export default function Navbar() {
               href="https://github.com/chronoscope"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-slate-300 hover:text-white transition-colors"
+              className="text-slate-300 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:rounded-sm"
             >
               GitHub
             </a>
@@ -51,7 +51,7 @@ export default function Navbar() {
           {/* Mobile hamburger */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="md:hidden p-2 text-slate-300 hover:text-white"
+            className="md:hidden p-2 text-slate-300 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:rounded"
             aria-label="Toggle menu"
           >
             <svg
@@ -62,9 +62,17 @@ export default function Navbar() {
               viewBox="0 0 24 24"
             >
               {mobileOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
               ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
               )}
             </svg>
           </button>
@@ -77,13 +85,13 @@ export default function Navbar() {
           <div className="px-4 pt-2 pb-4 space-y-2">
             <button
               onClick={() => scrollTo("features")}
-              className="block w-full text-left px-3 py-2 rounded-md text-slate-300 hover:text-white hover:bg-slate-800"
+              className="block w-full text-left px-3 py-2 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
             >
               Features
             </button>
             <button
               onClick={() => scrollTo("pricing")}
-              className="block w-full text-left px-3 py-2 rounded-md text-slate-300 hover:text-white hover:bg-slate-800"
+              className="block w-full text-left px-3 py-2 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
             >
               Pricing
             </button>
@@ -91,7 +99,7 @@ export default function Navbar() {
               href="https://github.com/chronoscope"
               target="_blank"
               rel="noopener noreferrer"
-              className="block px-3 py-2 rounded-md text-slate-300 hover:text-white hover:bg-slate-800"
+              className="block px-3 py-2 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:rounded-sm"
             >
               GitHub
             </a>

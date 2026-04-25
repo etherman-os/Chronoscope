@@ -20,8 +20,7 @@ let package = Package(
             name: "ChronoscopePrivacyC",
             path: "Sources/ChronoscopePrivacyC",
             linkerSettings: [
-                .linkedLibrary("chronoscope_privacy"),
-                .unsafeFlags(["-L", "../../services/privacy-engine/target/release"])
+                .linkedLibrary("chronoscope_privacy")
             ]
         ),
         .target(

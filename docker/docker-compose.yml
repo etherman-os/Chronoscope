@@ -1,3 +1,6 @@
+# WARNING: This compose file is for local development ONLY.
+# Internal services (postgres, redis, minio) bind to host ports for convenience.
+# Volume paths are resolved relative to this file's directory (docker/).
 services:
   postgres:
     image: postgres:16-alpine

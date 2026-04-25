@@ -1,8 +1,8 @@
-pub mod detector;
-pub mod redaction;
-pub mod consent;
 pub mod audit;
+pub mod consent;
+pub mod detector;
 pub mod ffi;
+pub mod redaction;
 
 use serde::{Deserialize, Serialize};
 
@@ -31,17 +31,12 @@ impl Default for PrivacyConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum RedactionMode {
+    #[default]
     Blur,
     Blackout,
     Replace(String),
-}
-
-impl Default for RedactionMode {
-    fn default() -> Self {
-        RedactionMode::Blur
-    }
 }
 
 pub struct PrivacyEngine {
@@ -86,7 +81,9 @@ impl PrivacyEngine {
     }
 }
 
-fn merge_overlapping_detections(mut detections: Vec<detector::Detection>) -> Vec<detector::Detection> {
+fn merge_overlapping_detections(
+    mut detections: Vec<detector::Detection>,
+) -> Vec<detector::Detection> {
     if detections.is_empty() {
         return detections;
     }

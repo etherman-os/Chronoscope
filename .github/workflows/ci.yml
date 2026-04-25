@@ -105,6 +105,12 @@ jobs:
       - name: Build Web
         run: cd services/web && npm ci && npm run build
 
+      - name: Audit Web Dependencies
+        run: cd services/web && npm audit --audit-level=high
+
+      - name: Test Web
+        run: cd services/web && npm test
+
   landing:
     name: Landing Page Build
     runs-on: ubuntu-latest
@@ -119,6 +125,9 @@ jobs:
 
       - name: Build Landing
         run: cd services/landing && npm ci && npm run build
+
+      - name: Audit Landing Dependencies
+        run: cd services/landing && npm audit --audit-level=high
 
   sdk-macos:
     name: macOS SDK Tests

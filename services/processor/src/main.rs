@@ -1,4 +1,6 @@
-use chronoscope_processor::{config, db, deduplicator, downloader, encoder, indexer, queue, sync, uploader};
+use chronoscope_processor::{
+    config, db, deduplicator, downloader, encoder, indexer, queue, sync, uploader,
+};
 use tracing::{error, info};
 
 #[tokio::main]
@@ -58,6 +60,15 @@ async fn process_session(config: &config::Config, session_id: &str) -> anyhow::R
 
     // 7. Update DB: status = 'ready', video_path, metadata
     db::update_session_status(config, session_id, "ready", &index).await?;
+
+    // 8. Clean up temporary encoded video file
+    if let Err(e) = tokio::fs::remove_file(&video_path).await {
+        tracing::warn!(
+            "Failed to remove temp video file {}: {}",
+            video_path.display(),
+            e
+        );
+    }
 
     info!("Session {} processed successfully", session_id);
     Ok(())

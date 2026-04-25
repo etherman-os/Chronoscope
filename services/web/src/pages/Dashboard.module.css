@@ -1,0 +1,44 @@
+.container {
+  display: flex;
+  height: 100vh;
+  font-family: system-ui, sans-serif;
+  background-color: #0b0b14;
+  color: #e0e0e0;
+}
+
+.main {
+  flex: 1;
+  background-color: #0b0b14;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.centerMessage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #9ca3af;
+  font-size: 18px;
+}
+
+.error {
+  color: #ef4444;
+}
+
+.title {
+  margin: 0 0 16px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+  }
+
+  .main {
+    padding: 16px;
+  }
+}

@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"context"
+	"log"
 	"net/http"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/chronoscope/analytics/internal/config"
+	"github.com/gin-gonic/gin"
 )
 
 // HeatmapPoint represents a single coordinate with event density.
@@ -23,7 +26,10 @@ func GetHeatmap(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		rows, err := cfg.DB.Query(`
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		rows, err := cfg.DB.QueryContext(ctx, `
 			SELECT e.x, e.y, COUNT(*) as count
 			FROM events e
 			JOIN sessions s ON e.session_id = s.id
@@ -42,6 +48,7 @@ func GetHeatmap(cfg *config.Config) gin.HandlerFunc {
 		for rows.Next() {
 			var p HeatmapPoint
 			if err := rows.Scan(&p.X, &p.Y, &p.Count); err != nil {
+				log.Printf("scan heatmap row: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to scan row"})
 				return
 			}

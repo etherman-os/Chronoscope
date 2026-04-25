@@ -28,6 +28,9 @@ git commit -m "chore(release): prepare $VERSION"
 # Tag
 git tag -a "v$VERSION" -m "Release v$VERSION"
 
+# Pull latest changes before pushing
+git pull origin main --rebase
+
 # Push
 git push origin main
 git push origin "v$VERSION"

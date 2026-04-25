@@ -6,7 +6,6 @@ export default defineConfig({
   define: {
     'import.meta.env.VITE_PROJECT_ID': '"test-project-id"',
     'import.meta.env.VITE_API_URL': '"http://localhost:8080/v1"',
-    'import.meta.env.VITE_API_KEY': '"test-api-key"',
   },
   test: {
     globals: true,

@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { Session } from '../types/session';
-import { listSessions } from '../api/client';
+import React, { useEffect, useState } from "react";
+import { Session } from "../types/session";
+import { listSessions } from "../api/client";
+import styles from "./SessionList.module.css";
 
 interface SessionListProps {
   onSelect: (session: Session) => void;
 }
 
-const PROJECT_ID = import.meta.env.VITE_PROJECT_ID || '';
+const PROJECT_ID = import.meta.env.VITE_PROJECT_ID || "";
 if (!PROJECT_ID) {
-  throw new Error('VITE_PROJECT_ID is required');
+  throw new Error("VITE_PROJECT_ID is required");
 }
 
 export const SessionList: React.FC<SessionListProps> = ({ onSelect }) => {
@@ -23,7 +24,8 @@ export const SessionList: React.FC<SessionListProps> = ({ onSelect }) => {
         const data = await listSessions(PROJECT_ID);
         setSessions(data);
       } catch (err) {
-        setError('Failed to load sessions');
+        console.error("Failed to load sessions:", err);
+        setError("Failed to load sessions");
       } finally {
         setLoading(false);
       }
@@ -43,82 +45,41 @@ export const SessionList: React.FC<SessionListProps> = ({ onSelect }) => {
   };
 
   return (
-    <div
-      style={{
-        width: '300px',
-        height: '100%',
-        backgroundColor: '#1a1a2e',
-        color: '#e0e0e0',
-        display: 'flex',
-        flexDirection: 'column',
-        borderRight: '1px solid #333',
-      }}
-    >
-      <div
-        style={{
-          padding: '16px',
-          borderBottom: '1px solid #333',
-          fontWeight: 600,
-          fontSize: '16px',
-          color: '#fff',
-        }}
-      >
-        Sessions
-      </div>
+    <div className={styles.container}>
+      <div className={styles.header}>Sessions</div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {loading && (
-          <div style={{ padding: '16px', textAlign: 'center', color: '#888' }}>
-            Loading...
-          </div>
-        )}
+      <div className={styles.scrollArea}>
+        {loading && <div className={styles.loading}>Loading...</div>}
 
-        {error && (
-          <div style={{ padding: '16px', textAlign: 'center', color: '#e74c3c' }}>
-            {error}
-          </div>
-        )}
+        {error && <div className={styles.error}>{error}</div>}
 
         {!loading && !error && sessions.length === 0 && (
-          <div style={{ padding: '16px', textAlign: 'center', color: '#888' }}>
-            No sessions found
-          </div>
+          <div className={styles.empty}>No sessions found</div>
         )}
 
         {sessions.map((session) => (
           <div
             key={session.id}
             onClick={() => onSelect(session)}
-            style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid #2a2a40',
-              cursor: 'pointer',
-              transition: 'background-color 0.15s',
+            role="button"
+            tabIndex={0}
+            aria-label={`Session for ${session.user_id || "Anonymous"}`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(session);
+              }
             }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLDivElement).style.backgroundColor = '#252545';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent';
-            }}
+            className={styles.row}
           >
-            <div style={{ fontWeight: 500, marginBottom: '4px' }}>
-              {session.user_id || 'Anonymous'}
+            <div className={styles.userId}>
+              {session.user_id || "Anonymous"}
             </div>
-            <div
-              style={{
-                fontSize: '12px',
-                color: '#aaa',
-                display: 'flex',
-                justifyContent: 'space-between',
-              }}
-            >
+            <div className={styles.meta}>
               <span>{formatDate(session.created_at)}</span>
               <span>{formatDuration(session.duration_ms)}</span>
             </div>
-            <div style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
-              Status: {session.status}
-            </div>
+            <div className={styles.status}>Status: {session.status}</div>
           </div>
         ))}
       </div>

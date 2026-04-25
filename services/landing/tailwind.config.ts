@@ -22,6 +22,9 @@ const config: Config = {
           900: "#1e3a8a",
         },
       },
+      spacing: {
+        "150": "37.5rem",
+      },
     },
   },
   plugins: [],

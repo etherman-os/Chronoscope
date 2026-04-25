@@ -11,3 +11,8 @@ body {
 #root {
   height: 100vh;
 }
+
+.error-boundary {
+  padding: 24px;
+  font-family: system-ui, sans-serif;
+}

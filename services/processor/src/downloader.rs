@@ -2,7 +2,10 @@ use crate::config::Config;
 use anyhow::Result;
 use std::path::PathBuf;
 
-pub async fn download_chunks(config: &Config, session_id: &str) -> Result<(tempfile::TempDir, Vec<PathBuf>)> {
+pub async fn download_chunks(
+    config: &Config,
+    session_id: &str,
+) -> Result<(tempfile::TempDir, Vec<PathBuf>)> {
     let prefix = format!("{}/", session_id);
 
     let list_resp = config
@@ -18,7 +21,9 @@ pub async fn download_chunks(config: &Config, session_id: &str) -> Result<(tempf
     let mut paths = Vec::with_capacity(contents.len());
 
     for object in contents {
-        let key = object.key.ok_or_else(|| anyhow::anyhow!("missing object key"))?;
+        let key = object
+            .key
+            .ok_or_else(|| anyhow::anyhow!("missing object key"))?;
         let get_resp = config
             .s3_client
             .get_object()

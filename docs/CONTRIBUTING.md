@@ -2,19 +2,9 @@
 
 Thank you for your interest in contributing! This guide will help you get started.
 
-## Table of Contents
-
-- [Development Environment Setup](#development-environment-setup)
-- [Code Style Guidelines](#code-style-guidelines)
-- [Commit Message Conventions](#commit-message-conventions)
-- [Pull Request Process](#pull-request-process)
-- [Testing Requirements](#testing-requirements)
-
 ---
 
-## Development Environment Setup
-
-### Prerequisites
+## Prerequisites
 
 | Tool                      | Version | Purpose                          |
 |---------------------------|---------|----------------------------------|
@@ -27,6 +17,33 @@ Thank you for your interest in contributing! This guide will help you get starte
 | MinIO                     | Latest  | Object Storage                   |
 | Docker & Docker Compose   | Latest  | Local infrastructure             |
 | Protobuf Compiler (`protoc`) | 3.x  | Schema generation                |
+
+---
+
+## Repository Structure
+
+```
+chronoscope/
+├── services/
+│   ├── ingestion/         # Go ingestion API
+│   ├── analytics/         # Go analytics API
+│   ├── processor/         # Rust video processor
+│   ├── privacy-engine/    # Rust privacy engine C ABI
+│   ├── web/               # React dashboard (Vite)
+│   └── landing/           # Next.js landing page
+├── packages/
+│   ├── sdk-macos/         # Swift macOS SDK
+│   ├── sdk-linux/         # Rust Linux SDK
+│   └── sdk-windows/       # C++ Windows SDK
+├── protocols/             # Protobuf schemas
+├── migrations/            # PostgreSQL migrations
+├── docker/                # Docker Compose files
+└── docs/                  # Documentation
+```
+
+---
+
+## Development Setup
 
 ### 1. Clone the Repository
 
@@ -86,41 +103,64 @@ cd services/processor
 cargo run
 ```
 
-### 5. Running Tests
+---
+
+## Testing
+
+Run the full test suite:
 
 ```bash
-# All tests
 make test
+```
 
-# Go services
+### Per-language Commands
+
+**Go services:**
+```bash
 cd services/ingestion && go test ./...
 cd services/analytics && go test ./...
+```
 
-# Rust services
+**Rust services:**
+```bash
 cd services/processor && cargo test
 cd services/privacy-engine && cargo test
+```
 
-# macOS SDK
+**macOS SDK:**
+```bash
 cd packages/sdk-macos && swift test
+```
 
-# Web
-cd services/web && npm run lint
+**Linux SDK:**
+```bash
+cd packages/sdk-linux && cargo test
+```
+
+**Web Dashboard:**
+```bash
+cd services/web && npm ci && npm run lint && npm test
+```
+
+**Landing Page:**
+```bash
+cd services/landing && npm ci && npm run lint && npm run build
 ```
 
 ---
 
-## Code Style Guidelines
+## Code Style
 
 ### Go
 
-- Follow the [Effective Go](https://go.dev/doc/effective_go) guidelines.
+- Follow [Effective Go](https://go.dev/doc/effective_go).
 - Use `gofmt` and `golangci-lint`.
 - Keep functions short and focused.
-- Error messages should be lowercase without punctuation (e.g., `errors.New("failed to connect")`).
-- Use meaningful variable names; avoid single-letter names except in very small scopes.
+- Error messages should be lowercase without punctuation.
 
 ```bash
 cd services/ingestion && golangci-lint run ./...
+cd services/analytics && golangci-lint run ./...
 ```
 
 ### Rust
@@ -147,7 +187,6 @@ cargo clippy --all-targets --all-features -- -D warnings
 - Follow the project's ESLint configuration.
 - Use functional components with hooks.
 - Prefer `const` and explicit types for function parameters.
-- Keep components small and reusable.
 
 ```bash
 cd services/web && npm run lint
@@ -221,7 +260,7 @@ security(ingestion): add rate limiting per API key
 
 6. **Push** your branch and open a Pull Request against `main`.
 
-7. **Fill out the PR template** (if available) with:
+7. **Fill out the PR template** with:
    - What changed and why
    - How to test it
    - Screenshots (for UI changes)
@@ -233,36 +272,13 @@ security(ingestion): add rate limiting per API key
 
 9. **Merge**: Maintainers will squash and merge once approved.
 
----
+## Branch Protection
 
-## Testing Requirements
-
-### Unit Tests
-
-- All new business logic **must** have unit tests.
-- Aim for >70% coverage in Go services.
-- Rust libraries should test all public functions.
-
-### Integration Tests
-
-- API endpoints should have integration tests against a test database.
-- SDKs should include end-to-end capture tests where feasible.
-
-### Manual Testing
-
-- For UI changes, test in the latest Chrome, Firefox, and Safari.
-- For SDK changes, test on the target OS version.
-
-### CI Checks
-
-All PRs trigger GitHub Actions workflows that run:
-- Go unit tests (`services/ingestion`, `services/analytics`)
-- Swift tests (`packages/sdk-macos`)
-- Rust clippy checks
-- Web and Landing builds
-- Lint checks
-
-See [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) for details.
+The `main` branch is protected. All changes must go through a Pull Request with:
+- At least one approving review from a maintainer.
+- All required status checks passing (CI build, lint, tests).
+- Stale reviews are dismissed when new commits are pushed.
+- Signed commits are encouraged but not strictly required.
 
 ---
 
