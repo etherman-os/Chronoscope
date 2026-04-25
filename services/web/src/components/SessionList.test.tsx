@@ -12,13 +12,13 @@ import { listSessions } from "../api/client";
 describe("SessionList", () => {
   it("renders loading state", () => {
     vi.mocked(listSessions).mockReturnValue(new Promise(() => {}));
-    render(<SessionList onSelect={() => {}} />);
+    render(<SessionList onSelect={() => {}} projectId="test-project" />);
     expect(screen.getByText(/Loading/i)).toBeInTheDocument();
   });
 
   it("renders error state when API fails", async () => {
     vi.mocked(listSessions).mockRejectedValue(new Error("Network error"));
-    render(<SessionList onSelect={() => {}} />);
+    render(<SessionList onSelect={() => {}} projectId="test-project" />);
     await waitFor(() => {
       expect(screen.getByText(/Failed to load sessions/i)).toBeInTheDocument();
     });
@@ -42,7 +42,7 @@ describe("SessionList", () => {
       },
     ];
     vi.mocked(listSessions).mockResolvedValue(mockSessions);
-    render(<SessionList onSelect={() => {}} />);
+    render(<SessionList onSelect={() => {}} projectId="test-project" />);
 
     await waitFor(() => {
       expect(screen.getByText("user-1")).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe("SessionList", () => {
 
   it("renders empty state when no sessions", async () => {
     vi.mocked(listSessions).mockResolvedValue([]);
-    render(<SessionList onSelect={() => {}} />);
+    render(<SessionList onSelect={() => {}} projectId="test-project" />);
 
     await waitFor(() => {
       expect(screen.getByText(/No sessions found/i)).toBeInTheDocument();
@@ -71,7 +71,7 @@ describe("SessionList", () => {
     ];
     const handleSelect = vi.fn();
     vi.mocked(listSessions).mockResolvedValue(mockSessions);
-    render(<SessionList onSelect={handleSelect} />);
+    render(<SessionList onSelect={handleSelect} projectId="test-project" />);
 
     await waitFor(() => {
       expect(screen.getByText("user-1")).toBeInTheDocument();

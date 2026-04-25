@@ -3,6 +3,10 @@ import { Session, SessionDetail } from "../types/session";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080/v1";
 
+function getApiKey(): string {
+  return localStorage.getItem("chronoscope_api_key") || "";
+}
+
 export const client = axios.create({
   baseURL: API_BASE,
   timeout: 10000,
@@ -10,6 +14,14 @@ export const client = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+client.interceptors.request.use((config) => {
+  const apiKey = getApiKey();
+  if (apiKey) {
+    config.headers["X-API-Key"] = apiKey;
+  }
+  return config;
 });
 
 client.interceptors.response.use(

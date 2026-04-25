@@ -39,7 +39,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           onTimeUpdate={handleTimeUpdate}
           className={styles.video}
         >
-          {/* <source src={`/v1/sessions/${sessionId}/video`} type="video/mp4" /> */}
+          <source src={`/v1/sessions/${sessionId}/video`} type="video/mp4" />
           Your browser does not support the video tag.
         </video>
 

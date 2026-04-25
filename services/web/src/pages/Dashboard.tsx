@@ -6,7 +6,11 @@ import { Session, SessionDetail } from "../types/session";
 import { getSession } from "../api/client";
 import styles from "./Dashboard.module.css";
 
-export const Dashboard: React.FC = () => {
+interface DashboardProps {
+  projectId: string;
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ projectId }) => {
   const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(
     null,
   );
@@ -35,7 +39,7 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      <SessionList onSelect={handleSelect} />
+      <SessionList onSelect={handleSelect} projectId={projectId} />
 
       <div className={styles.main}>
         {!selectedSession && !loading && (

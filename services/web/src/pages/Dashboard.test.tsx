@@ -12,7 +12,7 @@ import { listSessions, getSession } from "../api/client";
 describe("Dashboard", () => {
   it("renders initial state", () => {
     vi.mocked(listSessions).mockReturnValue(new Promise(() => {}));
-    render(<Dashboard />);
+    render(<Dashboard projectId="test-project" />);
     expect(screen.getByText(/Select a session to view replay/i)).toBeInTheDocument();
   });
 
@@ -42,7 +42,7 @@ describe("Dashboard", () => {
     };
     vi.mocked(listSessions).mockResolvedValue(sessions);
     vi.mocked(getSession).mockResolvedValue(detail);
-    render(<Dashboard />);
+    render(<Dashboard projectId="test-project" />);
 
     await waitFor(() => {
       expect(screen.getByText("user-1")).toBeInTheDocument();
@@ -67,7 +67,7 @@ describe("Dashboard", () => {
     ];
     vi.mocked(listSessions).mockResolvedValue(sessions);
     vi.mocked(getSession).mockRejectedValue(new Error("fail"));
-    render(<Dashboard />);
+    render(<Dashboard projectId="test-project" />);
 
     await waitFor(() => {
       expect(screen.getByText("user-1")).toBeInTheDocument();

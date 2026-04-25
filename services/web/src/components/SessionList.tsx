@@ -5,14 +5,10 @@ import styles from "./SessionList.module.css";
 
 interface SessionListProps {
   onSelect: (session: Session) => void;
+  projectId: string;
 }
 
-const PROJECT_ID = import.meta.env.VITE_PROJECT_ID || "";
-if (!PROJECT_ID) {
-  throw new Error("VITE_PROJECT_ID is required");
-}
-
-export const SessionList: React.FC<SessionListProps> = ({ onSelect }) => {
+export const SessionList: React.FC<SessionListProps> = ({ onSelect, projectId }) => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +17,7 @@ export const SessionList: React.FC<SessionListProps> = ({ onSelect }) => {
     const fetchSessions = async () => {
       try {
         setLoading(true);
-        const data = await listSessions(PROJECT_ID);
+        const data = await listSessions(projectId);
         setSessions(data);
       } catch (err) {
         console.error("Failed to load sessions:", err);
