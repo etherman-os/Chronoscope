@@ -43,9 +43,7 @@ fn wait_for_postgres(_port: u16) {
                 "chronoscope-test-postgres",
                 "sh",
                 "-c",
-                &format!(
-                    "pg_isready -h localhost -p 5432 -U postgres > /dev/null 2>&1 && echo ready"
-                ),
+                "pg_isready -h localhost -p 5432 -U postgres > /dev/null 2>&1 && echo ready",
             ])
             .output()
             .map(|o| String::from_utf8_lossy(&o.stdout).contains("ready"))

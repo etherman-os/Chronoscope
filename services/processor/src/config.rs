@@ -63,8 +63,6 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_pool_creation_fake_url() {
         let mut pg_cfg = deadpool_postgres::Config::new();

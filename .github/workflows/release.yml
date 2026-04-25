@@ -23,6 +23,11 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install FFmpeg deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libavfilter-dev libavdevice-dev libswresample-dev libpostproc-dev
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
