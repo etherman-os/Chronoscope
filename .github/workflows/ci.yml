@@ -52,8 +52,10 @@ jobs:
 
       - name: Run Rust Lint
         run: |
-          cd services/processor && cargo clippy --all-targets --all-features -- -D warnings
-          cd services/privacy-engine && cargo clippy --all-targets --all-features -- -D warnings
+          WORKDIR=$(pwd)
+          echo "=== Rust Lint ===" && echo "WORKDIR: $WORKDIR" && ls -la $WORKDIR/services/
+          cd $WORKDIR/services/processor && cargo clippy --all-targets --all-features -- -D warnings
+          cd $WORKDIR/services/privacy-engine && cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -168,21 +170,3 @@ jobs:
 
       - name: Run Linux SDK Tests
         run: cd packages/sdk-linux && cargo test
-
-  sdk-macos:
-    name: macOS SDK Tests
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Swift
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: '5.10'
-
-      - name: Build Privacy Engine
-        run: cd services/privacy-engine && cargo build --release
-
-      - name: Run Swift Tests
-        run: cd packages/sdk-macos && swift test

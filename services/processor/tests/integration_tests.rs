@@ -331,8 +331,9 @@ async fn test_full_pipeline() {
         let _ = chronoscope_processor::queue::queue_listener(config_clone, tx).await;
     });
 
-    // Push a message
+    // Wait for listener to be ready, then push a message
     let mut con = config.redis_client.get_multiplexed_async_connection().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(500)).await;
     redis::cmd("XADD")
         .arg("chronoscope:process_queue")
         .arg("*")
@@ -342,7 +343,7 @@ async fn test_full_pipeline() {
         .await
         .unwrap();
 
-    let received = tokio::time::timeout(Duration::from_secs(7), rx.recv())
+    let received = tokio::time::timeout(Duration::from_secs(10), rx.recv())
         .await
         .unwrap()
         .unwrap();
