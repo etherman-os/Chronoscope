@@ -22,7 +22,8 @@ Thumbs.db
 
 # Env
 .env
-.env.local
+.env.*
+!.env.example
 
 # Large binaries
 *.a

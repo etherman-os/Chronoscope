@@ -10,8 +10,21 @@ fi
 echo "🚀 Releasing Chronoscope $VERSION"
 
 # Run tests
-echo "Running tests..."
+echo "Running Go tests..."
+go test ./pkg/middleware/... ./services/ingestion/... ./services/analytics/...
+
+echo "Running frontend tests..."
+cd web && npm test && cd ..
+
+echo "Running Rust processor tests..."
 cd services/privacy-engine && cargo test && cd ../..
+
+echo "Checking for uncommitted secrets..."
+git diff --cached --name-only | xargs grep -ilE '\.env|SECRET|PASSWORD|TOKEN' || true
+if git diff --cached --name-only | grep -qE '\.env$'; then
+    echo "ERROR: .env file detected in staging. Aborting."
+    exit 1
+fi
 
 # Bump version
 echo "Bumping version..."
