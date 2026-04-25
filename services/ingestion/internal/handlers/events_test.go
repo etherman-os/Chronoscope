@@ -139,7 +139,9 @@ func TestUploadEvents(t *testing.T) {
 			t.Errorf("expected status %d, got %d: %s", http.StatusOK, w.Code, w.Body.String())
 		}
 		var resp map[string]interface{}
-		json.Unmarshal(w.Body.Bytes(), &resp)
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("unmarshal response: %v", err)
+		}
 		if resp["count"] != float64(0) {
 			t.Errorf("expected count 0, got %v", resp["count"])
 		}
