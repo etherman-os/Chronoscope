@@ -53,7 +53,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:RELEASE.2024-04-25T
+    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_USER}

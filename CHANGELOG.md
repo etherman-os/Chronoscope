@@ -43,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add explicit `URLSession` timeouts for uploads and session init
 - Fix Go test build errors and non-canonical import ordering
 
+### Fixed
+- Fix invalid MinIO Docker image tag (`RELEASE.2024-04-25T` → `RELEASE.2024-10-13T13-34-11Z`) in compose files and deployment docs
+- Fix rate limiter memory leak by adding automatic bucket cleanup (TTL 1h, sweep every 10m)
+- Fix E2E test script to use modern `docker compose` syntax and dynamic container names
+- Update `VERSION` to `0.2.0` and refresh `BUILD_REPORT.md` with verified statuses
+
 ### Tests
 - Add E2E integration tests for full session lifecycle
 - Add Go unit tests for ingestion handlers, middleware, and models

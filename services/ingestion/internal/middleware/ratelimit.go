@@ -8,13 +8,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// rateLimiter implements a simple per-key token bucket rate limiter.
+// rateLimiter implements a simple per-key token bucket rate limiter
+// with automatic bucket cleanup to prevent memory leaks.
 type rateLimiter struct {
 	mu       sync.RWMutex
 	buckets  map[string]*bucket
 	rate     int           // tokens added per interval
 	interval time.Duration // interval between token adds
 	burst    int           // max bucket size
+	ttl      time.Duration // bucket lifetime after last access
 }
 
 type bucket struct {
@@ -23,11 +25,31 @@ type bucket struct {
 }
 
 func newRateLimiter(rate int, interval time.Duration, burst int) *rateLimiter {
-	return &rateLimiter{
+	rl := &rateLimiter{
 		buckets:  make(map[string]*bucket),
 		rate:     rate,
 		interval: interval,
 		burst:    burst,
+		ttl:      1 * time.Hour,
+	}
+	// Start background cleanup goroutine
+	go rl.cleanup()
+	return rl
+}
+
+// cleanup removes stale buckets every 10 minutes to prevent memory leaks.
+func (rl *rateLimiter) cleanup() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		rl.mu.Lock()
+		now := time.Now()
+		for key, b := range rl.buckets {
+			if now.Sub(b.lastCheck) > rl.ttl {
+				delete(rl.buckets, key)
+			}
+		}
+		rl.mu.Unlock()
 	}
 }
 

@@ -4,17 +4,18 @@ set -e
 echo "=== Chronoscope E2E Test Suite ==="
 
 # Start test infrastructure
-docker-compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.test.yml up -d
 sleep 5
 
 # Wait for DB
-until docker exec chronoscope_postgres-test_1 pg_isready -U test -d chronoscope_test; do
+POSTGRES_CONTAINER=$(docker compose -f docker-compose.test.yml ps -q postgres-test)
+until docker exec "$POSTGRES_CONTAINER" pg_isready -U test -d chronoscope_test; do
     echo "Waiting for test DB..."
     sleep 1
 done
 
 # Fix api_key_hash to match SHA256 hashing in auth middleware
-docker exec chronoscope_postgres-test_1 psql -U test -d chronoscope_test -c "
+docker exec "$POSTGRES_CONTAINER" psql -U test -d chronoscope_test -c "
 UPDATE projects SET api_key_hash = '0b61f1668881de754863abb929c1d7bd7048419fbec15bb49511d2c5781c7c13'
 WHERE name = 'Demo App';
 "
@@ -47,6 +48,6 @@ LIST_RESPONSE=$(curl -s "http://localhost:8082/v1/sessions?project_id=22222222-2
 echo "Session list: $LIST_RESPONSE"
 
 # Cleanup
-docker-compose -f docker-compose.test.yml down
+docker compose -f docker-compose.test.yml down
 
 echo "=== E2E PASSED ==="
