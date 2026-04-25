@@ -1,9 +1,0 @@
-/home/etherman/Projects/Chronoscope/services/processor/target/debug/deps/aws_smithy_xml-94fb3052f2926a67.d: /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/lib.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/decode.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/encode.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/escape.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/unescape.rs
-
-/home/etherman/Projects/Chronoscope/services/processor/target/debug/deps/libaws_smithy_xml-94fb3052f2926a67.rmeta: /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/lib.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/decode.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/encode.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/escape.rs /home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/unescape.rs
-
-/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/lib.rs:
-/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/decode.rs:
-/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/encode.rs:
-/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/escape.rs:
-/home/etherman/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/aws-smithy-xml-0.60.15/src/unescape.rs:
