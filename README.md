@@ -139,7 +139,26 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### 4. Verify with cURL
+### 4. Create a Project & API Key
+
+The easiest way is via `psql`:
+
+```bash
+docker exec -it chronoscope-postgres psql -U chronoscope -d chronoscope
+```
+
+```sql
+INSERT INTO projects (id, name, api_key_hash)
+VALUES (
+  gen_random_uuid(),
+  'My Project',
+  '$2a$10$your-bcrypt-hash-here'
+);
+```
+
+Use any bcrypt hasher to generate the hash from your desired API key.
+
+### 5. Verify with cURL
 
 ```bash
 curl -X POST http://localhost:8080/v1/sessions/init \
@@ -226,7 +245,7 @@ Highlights:
 - [ ] Real-time WebSocket streaming for live session preview
 - [ ] Session search by user action ("show me users who clicked X")
 - [ ] SAML/SSO support for dashboard authentication
-- [ ] Prometheus metrics exporter for all services
+- [x] Prometheus metrics exporter for all services
 - [ ] Electron SDK wrapper
 - [ ] Mobile SDK (iOS/Android) experimental support
 
