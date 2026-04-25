@@ -57,10 +57,10 @@ pub fn apply(
                         }
                     }
 
-                    if count > 0 {
-                        frame[i] = (r / count) as u8;
-                        frame[i + 1] = (g / count) as u8;
-                        frame[i + 2] = (b / count) as u8;
+                    if let Some(div_r) = r.checked_div(count) {
+                        frame[i] = div_r as u8;
+                        frame[i + 1] = g.checked_div(count).unwrap_or(0) as u8;
+                        frame[i + 2] = b.checked_div(count).unwrap_or(0) as u8;
                     }
                 }
             }
