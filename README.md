@@ -198,7 +198,7 @@ Security is not an afterthought. See [docs/SECURITY.md](docs/SECURITY.md) for th
 Highlights:
 - **API Key Hashing** — SHA-256 before database comparison
 - **Project Isolation** — Cross-project session access is impossible
-- **Rate Limiting** — 100 req/min per API key (token bucket with TTL cleanup)
+- **Rate Limiting** — Configurable per-API-key token bucket with automatic bucket cleanup
 - **Input Validation** — Chunk size (2 MiB), chunk index (10,000), event batch (1,000) limits
 - **PII Redaction** — Automatic credit card, email, password, and SSN detection in frames
 - **CSP & CORS** — Strict headers, configurable origin allowlist

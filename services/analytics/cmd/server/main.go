@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -15,6 +16,22 @@ import (
 	sharedmw "github.com/chronoscope/pkg/middleware"
 	"github.com/gin-gonic/gin"
 )
+
+func parseRateLimit() (int, time.Duration) {
+	requests := 100
+	if v := os.Getenv("RATE_LIMIT_REQUESTS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			requests = n
+		}
+	}
+	interval := time.Minute
+	if v := os.Getenv("RATE_LIMIT_INTERVAL"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			interval = d
+		}
+	}
+	return requests, interval
+}
 
 func NewRouter(cfg *config.Config) *gin.Engine {
 	router := gin.Default()
@@ -27,7 +44,7 @@ func NewRouter(cfg *config.Config) *gin.Engine {
 	})
 
 	v1 := router.Group("/v1")
-	v1.Use(middleware.RateLimit(100, time.Minute))
+	v1.Use(middleware.RateLimit(parseRateLimit()))
 	v1.Use(sharedmw.APIKeyAuth(cfg.DB))
 	{
 		v1.GET("/analytics/heatmap", handlers.GetHeatmap(cfg))
