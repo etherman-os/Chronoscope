@@ -1,7 +1,7 @@
 use crate::config::Config;
 use anyhow::{Context, Result};
-use ffmpeg::{codec, format, frame, Rational};
 use ffmpeg::codec::traits::Encoder;
+use ffmpeg::{codec, format, frame, Rational};
 use ffmpeg_next as ffmpeg;
 use image::GenericImageView;
 use std::path::PathBuf;
@@ -35,9 +35,7 @@ pub async fn encode_h264_impl(session_id: &str, frames: Vec<PathBuf>) -> Result<
 
         let codec = ffmpeg::encoder::find(codec::Id::H264).context("find h264 encoder")?;
         let enc = unsafe {
-            let ptr = ffmpeg_next::ffi::avcodec_alloc_context3(
-                codec.encoder().unwrap().as_ptr(),
-            );
+            let ptr = ffmpeg_next::ffi::avcodec_alloc_context3(codec.encoder().unwrap().as_ptr());
             if ptr.is_null() {
                 anyhow::bail!("Failed to allocate codec context");
             }
@@ -143,7 +141,10 @@ mod tests {
     async fn test_encode_h264_empty_frames() {
         let result = encode_h264_impl("test_empty", vec![]).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("no frames to encode"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("no frames to encode"));
     }
 
     #[tokio::test]
@@ -161,5 +162,4 @@ mod tests {
         assert!(path.exists());
         let _ = std::fs::remove_file(&path);
     }
-
 }

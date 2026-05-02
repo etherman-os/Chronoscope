@@ -5,6 +5,6 @@ pub mod downloader;
 pub mod encoder;
 pub mod indexer;
 pub mod queue;
+pub mod s3_test;
 pub mod sync;
 pub mod uploader;
-pub mod s3_test;

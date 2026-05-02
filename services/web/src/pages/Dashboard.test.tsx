@@ -1,19 +1,53 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { Dashboard } from "../pages/Dashboard";
 
 vi.mock("../api/client", () => ({
   listSessions: vi.fn(),
   getSession: vi.fn(),
+  getSessionVideoUrl: vi.fn(),
+  getSessionStats: vi.fn().mockResolvedValue({
+    avg_duration_ms: 1000,
+    total_sessions: 1,
+    total_events: 1,
+    avg_events_per_session: 1,
+  }),
+  getHeatmap: vi.fn().mockResolvedValue([]),
+  getFunnel: vi.fn().mockResolvedValue([]),
+  listAuditLogs: vi.fn().mockResolvedValue([]),
+  exportUserData: vi.fn(),
+  deleteUserData: vi.fn(),
 }));
 
-import { listSessions, getSession } from "../api/client";
+import {
+  getFunnel,
+  getHeatmap,
+  getSession,
+  getSessionStats,
+  listAuditLogs,
+  listSessions,
+} from "../api/client";
 
 describe("Dashboard", () => {
-  it("renders initial state", () => {
+  beforeEach(() => {
+    vi.mocked(getSessionStats).mockResolvedValue({
+      avg_duration_ms: 1000,
+      total_sessions: 1,
+      total_events: 1,
+      avg_events_per_session: 1,
+    });
+    vi.mocked(getHeatmap).mockResolvedValue([]);
+    vi.mocked(getFunnel).mockResolvedValue([]);
+    vi.mocked(listAuditLogs).mockResolvedValue([]);
+  });
+
+  it("renders initial state", async () => {
     vi.mocked(listSessions).mockReturnValue(new Promise(() => {}));
     render(<Dashboard projectId="test-project" />);
     expect(screen.getByText(/Select a session to view replay/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Total Sessions")).toBeInTheDocument();
+    });
   });
 
   it("shows loading and then session details on select", async () => {
@@ -51,7 +85,8 @@ describe("Dashboard", () => {
     fireEvent.click(screen.getByText("user-1"));
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Session: s1/i })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /Session Replay/i })).toBeInTheDocument();
+      expect(screen.getByText("Session: s1")).toBeInTheDocument();
     });
   });
 
@@ -67,6 +102,7 @@ describe("Dashboard", () => {
     ];
     vi.mocked(listSessions).mockResolvedValue(sessions);
     vi.mocked(getSession).mockRejectedValue(new Error("fail"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<Dashboard projectId="test-project" />);
 
     await waitFor(() => {
@@ -78,5 +114,6 @@ describe("Dashboard", () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to load session details/i)).toBeInTheDocument();
     });
+    consoleError.mockRestore();
   });
 });

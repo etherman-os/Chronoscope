@@ -59,7 +59,10 @@ fn wait_for_postgres(_port: u16) {
 fn wait_for_minio(port: u16) {
     for _ in 0..60 {
         if Command::new("curl")
-            .args(["-sf", &format!("http://localhost:{}/minio/health/live", port)])
+            .args([
+                "-sf",
+                &format!("http://localhost:{}/minio/health/live", port),
+            ])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
@@ -246,7 +249,9 @@ async fn test_full_pipeline() {
     img.save(&chunk_path).unwrap();
 
     // Upload a chunk
-    let body = aws_sdk_s3::primitives::ByteStream::from_path(&chunk_path).await.unwrap();
+    let body = aws_sdk_s3::primitives::ByteStream::from_path(&chunk_path)
+        .await
+        .unwrap();
     config
         .s3_client
         .put_object()
@@ -258,9 +263,10 @@ async fn test_full_pipeline() {
         .unwrap();
 
     // Download chunks
-    let (_dir, chunks) = chronoscope_processor::downloader::download_chunks(&config, "test_session")
-        .await
-        .unwrap();
+    let (_dir, chunks) =
+        chronoscope_processor::downloader::download_chunks(&config, "test_session")
+            .await
+            .unwrap();
     assert_eq!(chunks.len(), 1);
     assert!(chunks[0].file_name().unwrap() == "frame1.jpg");
 
@@ -304,7 +310,10 @@ async fn test_full_pipeline() {
         .unwrap();
 
     let row = client
-        .query_one("SELECT status FROM sessions WHERE id = $1", &[&uuid::Uuid::parse_str(session_id).unwrap()])
+        .query_one(
+            "SELECT status FROM sessions WHERE id = $1",
+            &[&uuid::Uuid::parse_str(session_id).unwrap()],
+        )
         .await
         .unwrap();
     assert_eq!(row.get::<_, String>(0), "ready");
@@ -332,7 +341,11 @@ async fn test_full_pipeline() {
     });
 
     // Wait for listener to be ready, then push a message
-    let mut con = config.redis_client.get_multiplexed_async_connection().await.unwrap();
+    let mut con = config
+        .redis_client
+        .get_multiplexed_async_connection()
+        .await
+        .unwrap();
     tokio::time::sleep(Duration::from_millis(500)).await;
     redis::cmd("XADD")
         .arg("chronoscope:process_queue")

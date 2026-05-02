@@ -32,14 +32,14 @@ Built for teams who:
 ## Features
 
 - **Screen & Event Capture** — Frame-by-frame video + click/scroll/keyboard event tracking via native SDKs
-- **Cross-Platform SDKs** — Swift (macOS/ScreenCaptureKit), C++20 (Windows/WinRT Graphics Capture) *experimental*, Rust (Linux/PipeWire & X11) *experimental*
-- **Privacy-First** — Text-level PII detection (credit cards, emails, passwords, SSN) via on-device Rust privacy engine; frame-level redaction is on the roadmap
+- **Cross-Platform SDKs** — Rust Linux/X11 recorder is the first working capture path; Swift macOS and C++20 Windows SDKs are beta/experimental until their full API lifecycle is verified
+- **Privacy-First** — Text-level PII detection (credit cards, emails, passwords, SSN) via the Rust privacy engine; frame-level video redaction is on the roadmap
 - **Self-Hosted** — Runs entirely on your infrastructure. PostgreSQL + Redis + MinIO (S3-compatible object storage). No external SaaS dependency.
 - **Real-Time Processing** — FFmpeg-powered video processor transcodes and deduplicates frames asynchronously
 - **Replay Dashboard** — React-based player with timeline scrubbing and event overlay
 - **Analytics API** — Pre-computed heatmaps, funnel stages, and session statistics
 - **GDPR Ready** — User data export, right-to-be-forgotten deletion, and audit logging endpoints
-- **Production Hardened** — bcrypt/SHA-256 API key hashing (migration path), rate limiting, CORS restrictions, input validation, and CSP headers
+- **Production Hardened** — bcrypt/SHA-256 API key hashing (migration path), rate limiting, CORS restrictions, input validation, non-root service containers, health checks, and CSP headers
 
 ---
 
@@ -56,13 +56,13 @@ graph TD
     F[Web Dashboard] --> B
     F --> G[Analytics API]
     G --> C
-    H[Privacy Engine] --> E
+    H[Privacy Engine] -. text detection .-> A
 ```
 
 **Flow:**
 1. **Capture** — SDK records frames + events locally
 2. **Ingest** — API receives chunks, stores metadata in PostgreSQL and video in MinIO
-3. **Process** — Rust worker transcodes video, deduplicates frames, redacts PII
+3. **Process** — Rust worker transcodes video, deduplicates frames, and indexes replay metadata
 4. **Replay** — Web dashboard fetches processed video and events for playback
 5. **Analyze** — Analytics API serves heatmaps, funnels, and session stats
 
@@ -80,9 +80,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full deep dive.
 | **Privacy Engine** | Rust (C ABI for cross-language FFI) |
 | **Dashboard** | React 18 + Vite + TypeScript |
 | **Landing Page** | Next.js 14 |
-| **macOS SDK** | Swift + ScreenCaptureKit |
-| **Windows SDK** | C++20 + WinRT Graphics Capture |
-| **Linux SDK** | Rust + PipeWire / X11 |
+| **macOS SDK** | Swift + ScreenCaptureKit (beta) |
+| **Windows SDK** | C++20 + WinRT Graphics Capture (experimental) |
+| **Linux SDK** | Rust + X11 recorder (working), PipeWire/Wayland planned |
 | **Database** | PostgreSQL 16 |
 | **Cache/Queue** | Redis 7 |
 | **Object Storage** | MinIO (S3-compatible) |
@@ -100,7 +100,8 @@ Get a local instance running in **5 minutes**:
 - Go 1.22+
 - Node.js 20+
 - Git
-- Rust 1.75+ (only if building the Linux SDK)
+- Rust 1.75+ and FFmpeg/libav development libraries (for the processor and Linux recorder)
+- Linux X11 session for local desktop recording
 
 ### 1. Clone & Start Infrastructure
 
@@ -112,90 +113,72 @@ make up
 
 This starts PostgreSQL, Redis, and MinIO in the background.
 
-### 2. Start the APIs
+### 2. Seed a Local Project
 
 ```bash
-# Terminal 1 — Ingestion API
-cd services/ingestion
-cp .env.example .env
-export $(grep -v '^#' .env | xargs)
-go run cmd/server/main.go
-# Server binds to SERVER_ADDR (default :8080 from .env)
-
-# Terminal 2 — Analytics API
-cd services/analytics
-cp .env.example .env
-export $(grep -v '^#' .env | xargs)
-go run cmd/server/main.go
-# Server binds to SERVER_ADDR (default :8081 from .env)
+make seed-local
 ```
 
-> **Note:** Use `SERVER_ADDR` env var to change the port (e.g., `SERVER_ADDR=:9000`). The legacy `PORT` env var is not supported.
+This creates a local project with API key `local-dev-key` and project ID `22222222-2222-2222-2222-222222222222`.
 
-### 3. Start the Dashboard
+### 3. Start the Services
+
+Open four terminals:
 
 ```bash
-# Terminal 3 — Web UI
-cd services/web
-cp .env.example .env
-npm install
-npm run dev
+make run-ingestion
+make run-processor
+make run-analytics
+make run-web
 ```
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### 4. Create a Project & API Key
-
-The easiest way is via `psql`:
+### 4. Record a Real Linux Session
 
 ```bash
-docker exec -it chronoscope-postgres psql -U chronoscope -d chronoscope
+make record-linux DURATION=30 FPS=5
 ```
 
-```sql
-INSERT INTO projects (id, name, api_key_hash)
-VALUES (
-  gen_random_uuid(),
-  'My Project',
-  -- Option A: bcrypt (recommended for new projects)
-  '$2a$10$your-bcrypt-hash-here'
-  -- Option B: SHA-256 hex (legacy, for migration compatibility)
-  -- '$(echo -n "your-api-key" | sha256sum | cut -d' ' -f1)'
-);
+The Linux recorder initializes a real session, captures X11 frames, uploads click events, completes the session, and lets the processor publish `session.mp4`.
+
+No X11 desktop available? Upload a synthetic replay to validate the full self-hosted ingestion, processing, and dashboard path:
+
+```bash
+make demo-session
 ```
 
-Use any bcrypt hasher to generate the hash from your desired API key.
-SHA-256 hash can be generated with: `echo -n "your-api-key" | sha256sum | cut -d' ' -f1`
+Login to the dashboard with:
+- API key: `local-dev-key`
+- Project ID: `22222222-2222-2222-2222-222222222222`
 
 ### 5. Verify with cURL
 
 ```bash
 # 1. Initialize a session
 curl -X POST http://localhost:8080/v1/sessions/init \
-  -H "X-API-Key: YOUR_API_KEY" \
+  -H "X-API-Key: local-dev-key" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"user-123","capture_mode":"hybrid"}'
 # Returns: {"session_id":"...","upload_url":"/v1/sessions/.../chunks","expires_at":"..."}
 
 # 2. Upload video chunks (multipart/form-data, JPEG required)
 curl -X POST http://localhost:8080/v1/sessions/SESSION_ID/chunks \
-  -H "X-API-Key: YOUR_API_KEY" \
+  -H "X-API-Key: local-dev-key" \
   -H "X-Chunk-Index: 0" \
   -F "chunk=@frame.jpg;type=image/jpeg"
 # Returns: {"received":true,"next_chunk":1}
 
 # 3. Upload click/scroll/keyboard events (JSON)
 curl -X POST http://localhost:8080/v1/sessions/SESSION_ID/events \
-  -H "X-API-Key: YOUR_API_KEY" \
+  -H "X-API-Key: local-dev-key" \
   -H "Content-Type: application/json" \
   -d '{"events":[{"event_type":"click","timestamp_ms":1000,"x":100,"y":200,"target":"button","payload":{"id":"btn-submit"}}]}'
 # Returns: {"count":1}
 
 # 4. Complete the session
 curl -X POST http://localhost:8080/v1/sessions/SESSION_ID/complete \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"duration_ms":5000}'
+  -H "X-API-Key: local-dev-key"
 # Returns: {"status":"completed"}
 ```
 
@@ -207,7 +190,7 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the complete guide, including S
 
 Drop the SDK into your desktop app and start capturing in minutes:
 
-**macOS (Swift):**
+**macOS (Swift, beta):**
 ```swift
 import Chronoscope
 
@@ -218,7 +201,7 @@ await Chronoscope.shared.start(config: config)
 await Chronoscope.shared.stop()
 ```
 
-**Windows (C++20):**
+**Windows (C++20, experimental):**
 ```cpp
 #include <chronoscope/sdk.h>
 
@@ -229,9 +212,9 @@ auto session = chronoscope::Chronoscope::Instance()
 session->Stop();
 ```
 
-**Linux (Rust):**
+**Linux (Rust, working on X11):**
 ```rust
-use chronoscope_sdk::{CaptureConfig, LinuxCapture};
+use chronoscope_sdk_linux::{CaptureConfig, LinuxCapture};
 
 let config = CaptureConfig::new("your-key", "https://api.yourapp.com");
 let mut capture = LinuxCapture::new(config)?;
@@ -274,6 +257,8 @@ Highlights:
 ## Roadmap
 
 - [ ] Windows SDK CI build on `windows-latest` runner
+- [x] Linux X11 desktop recorder CLI
+- [ ] Linux Wayland/PipeWire recorder backend
 - [ ] Real-time WebSocket streaming for live session preview
 - [ ] Session search by user action ("show me users who clicked X")
 - [ ] SAML/SSO support for dashboard authentication

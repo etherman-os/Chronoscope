@@ -28,14 +28,17 @@ export const SessionList: React.FC<SessionListProps> = ({ onSelect, projectId })
     };
 
     fetchSessions();
-  }, []);
+  }, [projectId]);
 
   const formatDate = (dateStr: string): string => {
     const date = new Date(dateStr);
     return date.toLocaleString();
   };
 
-  const formatDuration = (ms: number): string => {
+  const formatDuration = (ms?: number): string => {
+    if (!ms) {
+      return "recording";
+    }
     const seconds = Math.round(ms / 1000);
     return `${seconds}s`;
   };
@@ -75,7 +78,9 @@ export const SessionList: React.FC<SessionListProps> = ({ onSelect, projectId })
               <span>{formatDate(session.created_at)}</span>
               <span>{formatDuration(session.duration_ms)}</span>
             </div>
-            <div className={styles.status}>Status: {session.status}</div>
+            <div className={`${styles.status} ${styles[session.status] || ""}`}>
+              {session.status}
+            </div>
           </div>
         ))}
       </div>

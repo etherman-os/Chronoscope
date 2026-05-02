@@ -2,6 +2,21 @@ use crate::config::Config;
 use crate::indexer::VideoIndex;
 use anyhow::{Context, Result};
 
+pub async fn mark_session_processing(config: &Config, session_id: &str) -> Result<()> {
+    let session_uuid = uuid::Uuid::parse_str(session_id)
+        .with_context(|| format!("session_id '{}' is not a valid UUID", session_id))?;
+
+    let client = config.db_pool.get().await?;
+    client
+        .execute(
+            "UPDATE sessions SET status = 'processing', metadata = COALESCE(metadata, '{}'::jsonb) || $1 WHERE id = $2::uuid",
+            &[&serde_json::json!({"processor": {"started_at": chrono_like_now()}}), &session_uuid],
+        )
+        .await?;
+
+    Ok(())
+}
+
 pub async fn update_session_status(
     config: &Config,
     session_id: &str,
@@ -26,6 +41,35 @@ pub async fn update_session_status(
         .await?;
 
     Ok(())
+}
+
+pub async fn mark_session_failed(config: &Config, session_id: &str, error: &str) -> Result<()> {
+    let session_uuid = uuid::Uuid::parse_str(session_id)
+        .with_context(|| format!("session_id '{}' is not a valid UUID", session_id))?;
+
+    let client = config.db_pool.get().await?;
+    let metadata = serde_json::json!({
+        "processor": {
+            "failed_at": chrono_like_now(),
+            "error": error.chars().take(1000).collect::<String>()
+        }
+    });
+
+    client
+        .execute(
+            "UPDATE sessions SET status = 'failed', processed_at = NOW(), metadata = COALESCE(metadata, '{}'::jsonb) || $1 WHERE id = $2::uuid",
+            &[&metadata, &session_uuid],
+        )
+        .await?;
+
+    Ok(())
+}
+
+fn chrono_like_now() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs().to_string())
+        .unwrap_or_else(|_| "0".to_string())
 }
 
 #[cfg(test)]

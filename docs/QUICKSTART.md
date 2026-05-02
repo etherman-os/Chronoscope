@@ -1,6 +1,6 @@
 # Quick Start
 
-Get Chronoscope running locally in under 5 minutes.
+Run Chronoscope locally as a self-hosted desktop session replay stack, record a real Linux X11 session, and replay it in the browser.
 
 ---
 
@@ -9,7 +9,8 @@ Get Chronoscope running locally in under 5 minutes.
 - Docker & Docker Compose
 - Go 1.22+ (for ingestion and analytics APIs)
 - Node.js 20+ (for web dashboard)
-- Rust 1.75+ (only if building the Linux SDK or running the video processor)
+- Rust 1.75+ and FFmpeg/libav development libraries
+- Linux X11 session for local recording
 - Git
 
 ---
@@ -30,83 +31,69 @@ Verify all containers are healthy:
 docker compose -f docker/docker-compose.yml ps
 ```
 
----
-
-## 2. Start Ingestion API
+## 2. Seed a Local Project
 
 ```bash
-cd services/ingestion
-cp .env.example .env
-export $(grep -v '^#' .env | xargs)
-go run cmd/server/main.go
+make seed-local
 ```
 
-The Ingestion API will be available at `http://localhost:8080`.
+This creates:
 
----
-
-## 3. Start Analytics API
-
-In a new terminal:
-
-```bash
-cd services/analytics
-cp .env.example .env
-export $(grep -v '^#' .env | xargs)
-go run cmd/server/main.go
-```
-
-The Analytics API will be available at `http://localhost:8081`.
+- API key: `local-dev-key`
+- Project ID: `22222222-2222-2222-2222-222222222222`
+- Project name: `Local Desktop App`
 
 ---
 
-## 4. Start Web Dashboard
+## 3. Start Services
 
-In a new terminal:
+Open one terminal per process:
 
 ```bash
-cd services/web
-cp .env.example .env
-npm install
-npm run dev
+make run-ingestion
+make run-processor
+make run-analytics
+make run-web
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
-> **Note:** The web dashboard reads `VITE_API_KEY` from `.env` to authenticate with the Ingestion API. The default value matches the seeded demo key.
+The dashboard will be available at `http://localhost:5173`.
 
 ---
 
-## 5. Create a Project and Generate an API Key
-
-There are no seeded demo keys — you must create your own:
+## 4. Record Linux Desktop
 
 ```bash
-# Create an organization and project directly in the database
-docker exec -it chronoscope-postgres psql -U chronoscope -d chronoscope -c "
-INSERT INTO organizations (id, name) VALUES
-  ('00000000-0000-0000-0000-000000000001', 'My Organization');
-
-INSERT INTO projects (id, org_id, name, api_key_hash) VALUES
-  ('00000000-0000-0000-0000-000000000002',
-   '00000000-0000-0000-0000-000000000001',
-   'My Project',
-   -- SHA-256 hex of 'my-secret-api-key'
-   '$(echo -n my-secret-api-key | sha256sum | cut -d\" \" -f1)');
-"
+make record-linux DURATION=30 FPS=5
 ```
 
-Generate your API key hash:
+The recorder initializes a session through the ingestion API, captures X11 frames as JPEG chunks, records click events, completes the session, and lets the processor encode the replay video.
+
+If you are on a server, CI machine, Wayland-only desktop, or any environment without an X11 display, create a synthetic replay instead:
+
 ```bash
-echo -n "my-secret-api-key" | sha256sum | cut -d' ' -f1
+make demo-session
 ```
 
-## 6. Verify with cURL
+This uploads generated JPEG frames and demo events through the same public ingestion API, then queues the processor exactly like a real captured session.
+
+---
+
+## 5. Replay the Session
+
+Open `http://localhost:5173` and login with:
+
+- API key: `local-dev-key`
+- Project ID: `22222222-2222-2222-2222-222222222222`
+
+Select the recorded session. If it is still `completed`, wait for the processor to publish the MP4 and refresh the session.
+
+---
+
+## 6. Verify API Manually
 
 ```bash
-# Replace SHA256_HASH with the hash from step 5
 curl -X POST http://localhost:8080/v1/sessions/init \
-  -H "X-API-Key: my-secret-api-key" \
+  -H "X-API-Key: local-dev-key" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"user-123","capture_mode":"hybrid"}'
 ```

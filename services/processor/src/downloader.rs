@@ -51,5 +51,13 @@ pub async fn download_chunks(
         }
     }
 
+    paths.sort_by_key(|path| {
+        path.file_stem()
+            .and_then(|name| name.to_str())
+            .and_then(|name| name.strip_prefix("chunk_"))
+            .and_then(|index| index.parse::<u32>().ok())
+            .unwrap_or(u32::MAX)
+    });
+
     Ok((temp_dir, paths))
 }

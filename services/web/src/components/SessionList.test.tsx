@@ -18,10 +18,12 @@ describe("SessionList", () => {
 
   it("renders error state when API fails", async () => {
     vi.mocked(listSessions).mockRejectedValue(new Error("Network error"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     render(<SessionList onSelect={() => {}} projectId="test-project" />);
     await waitFor(() => {
       expect(screen.getByText(/Failed to load sessions/i)).toBeInTheDocument();
     });
+    consoleError.mockRestore();
   });
 
   it("renders sessions after loading", async () => {

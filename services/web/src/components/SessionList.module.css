@@ -63,9 +63,32 @@
 }
 
 .status {
+  display: inline-block;
   font-size: 11px;
   color: #9ca3af;
-  margin-top: 4px;
+  margin-top: 8px;
+  padding: 3px 8px;
+  border: 1px solid #374151;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ready {
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.completed,
+.capturing,
+.processing {
+  color: #fde68a;
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.failed {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.5);
 }
 
 @media (max-width: 768px) {

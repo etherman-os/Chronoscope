@@ -139,9 +139,8 @@ npm run dev
 
 **Expected Behavior:**
 - Build succeeds without TypeScript errors
-- `VITE_API_KEY` must be set or the app throws at runtime
-- `VITE_PROJECT_ID` must be set or the app throws at runtime
-- DevTools → Network shows no hardcoded API key in JS bundle
+- Login stores the API key and project ID in local storage for the dashboard session
+- DevTools → Network shows the API key only in authenticated request headers, not as a hardcoded build-time constant
 
 ### Verify CSP
 
@@ -187,13 +186,27 @@ docker build -t chronoscope-ingestion services/ingestion --no-cache 2>&1 | grep 
 ### Docker Compose
 
 ```bash
-cd docker
-docker compose up -d
+make up
+make seed-local
 ```
 
 **Expected Behavior:**
 - PostgreSQL, Redis, and MinIO start
 - MinIO image is pinned to a specific release tag (not `latest`)
+
+### Synthetic Replay Demo
+
+Run this when no X11 desktop is available:
+
+```bash
+make demo-session
+```
+
+**Expected Behavior:**
+- A session is initialized through the ingestion API
+- Generated JPEG chunks and demo events are uploaded
+- The session is completed and queued for processing
+- The processor publishes an MP4 that appears in the dashboard after refresh
 
 ---
 

@@ -11,25 +11,25 @@ pub mod upload;
 
 use anyhow::Result;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::time::Instant;
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 pub use config::{CaptureConfig, CaptureMode, CaptureQuality};
+pub use upload::SessionEvent;
 
 pub struct LinuxCapture {
     config: CaptureConfig,
-    buffer: Arc<Mutex<buffer::CircularBuffer>>,
-    _uploader: upload::ChunkUploader,
+    uploader: Option<Arc<upload::ChunkUploader>>,
     _privacy: chronoscope_privacy::PrivacyEngine,
     cancel_token: CancellationToken,
+    tasks: Vec<JoinHandle<Result<()>>>,
+    session_id: Option<String>,
+    started_at: Option<Instant>,
 }
 
 impl LinuxCapture {
     pub fn new(config: CaptureConfig) -> Result<Self> {
-        let buffer = Arc::new(Mutex::new(buffer::CircularBuffer::new(
-            config.buffer_size_mb * 1024 * 1024,
-        )));
-        let uploader = upload::ChunkUploader::new(&config)?;
         let privacy_config = chronoscope_privacy::PrivacyConfig {
             detect_credit_cards: true,
             detect_emails: true,
@@ -43,42 +43,112 @@ impl LinuxCapture {
         let cancel_token = CancellationToken::new();
         Ok(Self {
             config,
-            buffer,
-            _uploader: uploader,
+            uploader: None,
             _privacy: privacy,
             cancel_token,
+            tasks: Vec::new(),
+            session_id: None,
+            started_at: None,
         })
     }
 
     pub async fn start(&mut self) -> Result<()> {
-        let display_server = detect_display_server()?;
-        match display_server {
-            DisplayServer::Wayland => self.start_wayland().await,
-            DisplayServer::X11 => self.start_x11().await,
+        if self.uploader.is_some() {
+            return Ok(());
         }
+
+        let mut uploader = upload::ChunkUploader::new(&self.config)?;
+        let session_id = uploader
+            .initialize_session(&self.config.user_id, &self.config.capture_mode)
+            .await?;
+        let uploader = Arc::new(uploader);
+        self.session_id = Some(session_id);
+        self.uploader = Some(uploader.clone());
+        self.started_at = Some(Instant::now());
+
+        let display_server = detect_display_server()?;
+        if self.config.capture_mode != CaptureMode::Events {
+            let (frame_tx, frame_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(16);
+            self.spawn_upload_loop(uploader.clone(), frame_rx);
+
+            match display_server {
+                DisplayServer::Wayland => self.spawn_wayland(frame_tx),
+                DisplayServer::X11 => self.spawn_x11(frame_tx),
+            }
+        }
+
+        if self.config.capture_mode != CaptureMode::Video {
+            self.spawn_input_capture(uploader);
+        }
+
+        Ok(())
     }
 
     pub async fn stop(&mut self) -> Result<()> {
         self.cancel_token.cancel();
+        while let Some(task) = self.tasks.pop() {
+            match task.await {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => tracing::warn!("Chronoscope task stopped with error: {}", err),
+                Err(err) => tracing::warn!("Chronoscope task join error: {}", err),
+            }
+        }
+
+        if let Some(uploader) = &self.uploader {
+            let duration = self
+                .started_at
+                .map(|started_at| started_at.elapsed().as_millis());
+            uploader.finalize_with_duration(duration).await?;
+        }
+
+        self.uploader = None;
+        self.session_id = None;
+        self.started_at = None;
+        self.cancel_token = CancellationToken::new();
         Ok(())
     }
 
-    async fn start_wayland(&mut self) -> Result<()> {
-        capture::wayland::start_capture(
-            self.buffer.clone(),
-            self.config.frame_rate,
-            self.cancel_token.child_token(),
-        )
-        .await
+    pub fn session_id(&self) -> Option<&str> {
+        self.session_id.as_deref()
     }
 
-    async fn start_x11(&mut self) -> Result<()> {
-        capture::x11::start_capture(
-            self.buffer.clone(),
-            self.config.frame_rate,
-            self.cancel_token.child_token(),
-        )
-        .await
+    fn spawn_x11(&mut self, frame_tx: tokio::sync::mpsc::Sender<Vec<u8>>) {
+        let frame_rate = self.config.frame_rate;
+        let token = self.cancel_token.child_token();
+        self.tasks.push(tokio::spawn(async move {
+            capture::x11::start_capture(frame_tx, frame_rate, token).await
+        }));
+    }
+
+    fn spawn_wayland(&mut self, frame_tx: tokio::sync::mpsc::Sender<Vec<u8>>) {
+        let frame_rate = self.config.frame_rate;
+        let token = self.cancel_token.child_token();
+        self.tasks.push(tokio::spawn(async move {
+            capture::wayland::start_capture(frame_tx, frame_rate, token).await
+        }));
+    }
+
+    fn spawn_upload_loop(
+        &mut self,
+        uploader: Arc<upload::ChunkUploader>,
+        mut frame_rx: tokio::sync::mpsc::Receiver<Vec<u8>>,
+    ) {
+        self.tasks.push(tokio::spawn(async move {
+            let mut chunk_index = 0u32;
+            while let Some(frame) = frame_rx.recv().await {
+                uploader.upload_chunk(frame, chunk_index).await?;
+                chunk_index = chunk_index.saturating_add(1);
+            }
+            Ok(())
+        }));
+    }
+
+    fn spawn_input_capture(&mut self, uploader: Arc<upload::ChunkUploader>) {
+        let token = self.cancel_token.child_token();
+        let started_at = Instant::now();
+        self.tasks.push(tokio::spawn(async move {
+            input::start_input_capture(uploader, started_at, token).await
+        }));
     }
 }
 
@@ -89,10 +159,10 @@ pub enum DisplayServer {
 }
 
 pub fn detect_display_server() -> Result<DisplayServer> {
-    if std::env::var("WAYLAND_DISPLAY").is_ok() {
-        Ok(DisplayServer::Wayland)
-    } else if std::env::var("DISPLAY").is_ok() {
+    if std::env::var("DISPLAY").is_ok() {
         Ok(DisplayServer::X11)
+    } else if std::env::var("WAYLAND_DISPLAY").is_ok() {
+        Ok(DisplayServer::Wayland)
     } else {
         Err(anyhow::anyhow!(
             "No display server detected. Set WAYLAND_DISPLAY or DISPLAY."
@@ -109,13 +179,24 @@ mod tests {
         let orig_wayland = std::env::var("WAYLAND_DISPLAY").ok();
         let orig_display = std::env::var("DISPLAY").ok();
 
-        std::env::set_var("WAYLAND_DISPLAY", "wayland-1");
-        std::env::remove_var("DISPLAY");
-        assert!(matches!(detect_display_server().unwrap(), DisplayServer::Wayland));
-
         std::env::remove_var("WAYLAND_DISPLAY");
         std::env::set_var("DISPLAY", ":0");
-        assert!(matches!(detect_display_server().unwrap(), DisplayServer::X11));
+        assert!(matches!(
+            detect_display_server().unwrap(),
+            DisplayServer::X11
+        ));
+
+        std::env::set_var("WAYLAND_DISPLAY", "wayland-1");
+        assert!(matches!(
+            detect_display_server().unwrap(),
+            DisplayServer::X11
+        ));
+
+        std::env::remove_var("DISPLAY");
+        assert!(matches!(
+            detect_display_server().unwrap(),
+            DisplayServer::Wayland
+        ));
 
         std::env::remove_var("WAYLAND_DISPLAY");
         std::env::remove_var("DISPLAY");

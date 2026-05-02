@@ -13,7 +13,7 @@ Chronoscope is a multi-service platform composed of:
 3. **Video Processor** — asynchronously processes video chunks (transcode, deduplicate, index).
 4. **Analytics API** — serves aggregated metrics (heatmaps, funnels, session stats).
 5. **Web Dashboard** — React-based UI for replaying sessions and exploring analytics.
-6. **Privacy Engine** — Rust library for PII detection and frame redaction.
+6. **Privacy Engine** — Rust library for text-level PII detection and redaction primitives.
 7. **Landing Page** — static Next.js site for marketing.
 
 ---
@@ -34,6 +34,9 @@ flowchart LR
 
     subgraph Processing
         VP[Video Processor]
+    end
+
+    subgraph Privacy
         PE[Privacy Engine]
     end
 
@@ -46,9 +49,8 @@ flowchart LR
     API --> DB
     API --> S3
     S3 --> VP
-    VP --> PE
-    PE --> S3
     VP --> DB
+    SDK -. local text scan .-> PE
     WD --> API
     WD --> AA
     AA --> DB
@@ -65,15 +67,16 @@ flowchart LR
 
 1. The **Processor** (Rust) polls the Redis queue for new jobs.
 2. It downloads chunks from MinIO, transcodes them with **FFmpeg**, and deduplicates frames using **perceptual hashing**.
-3. The **Privacy Engine** detects and redacts PII in frames (blur, blackout, replace).
-4. Processed videos and event indexes are uploaded back to MinIO.
-5. PostgreSQL is updated with processed paths and durations.
+3. Processed videos and event indexes are uploaded back to MinIO.
+4. PostgreSQL is updated with processed paths and durations.
+
+Frame-level OCR/redaction is not part of the current processor path. The current privacy engine provides text-level PII detection and redaction primitives for SDK/runtime integration.
 
 ### Replay Flow
 
 1. The **Web Dashboard** queries the Ingestion API for session lists and details.
-2. It fetches processed video segments from MinIO (via presigned URLs).
-3. The Canvas-based player renders video with an overlaid event timeline.
+2. It streams processed video through the authenticated Ingestion API.
+3. The browser video player renders replay with an overlaid event timeline.
 
 ### Analytics Flow
 
@@ -128,9 +131,8 @@ flowchart TB
     W --> I
     W --> An
     M --> Pr
-    Pr --> Pe
-    Pe --> M
     Pr --> P
+    C -. text scan .-> Pe
     I --> R
     Pr --> R
 ```

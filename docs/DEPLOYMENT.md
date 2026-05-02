@@ -17,11 +17,9 @@ Deploy Chronoscope on your own infrastructure with Docker Compose, SSL/TLS, back
 
 ## Docker Compose Production Setup
 
-Use the provided `docker/docker-compose.yml` as a base. For production, create a `docker-compose.prod.yml` override:
+Use `docker/docker-compose.prod.yml` as the production-oriented starting point. It keeps PostgreSQL, Redis, and MinIO on the private Docker network and binds only the HTTP services to `127.0.0.1` for a reverse proxy.
 
 ```yaml
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -75,7 +73,7 @@ services:
       dockerfile: Dockerfile
     environment:
       SERVER_ADDR: :8080
-      DATABASE_URL: postgres://chronoscope:${DB_PASSWORD}@postgres:5432/chronoscope?sslmode=disable
+      DATABASE_URL: postgres://chronoscope:${DB_PASSWORD}@postgres:5432/chronoscope?sslmode=${DB_SSLMODE:-disable}
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_USER}
       MINIO_SECRET_KEY: ${MINIO_PASSWORD}
@@ -101,7 +99,7 @@ services:
       dockerfile: Dockerfile
     environment:
       SERVER_ADDR: :8081
-      DATABASE_URL: postgres://chronoscope:${DB_PASSWORD}@postgres:5432/chronoscope?sslmode=disable
+      DATABASE_URL: postgres://chronoscope:${DB_PASSWORD}@postgres:5432/chronoscope?sslmode=${DB_SSLMODE:-disable}
       DB_MAX_OPEN_CONNS: "25"
       DB_MAX_IDLE_CONNS: "5"
       DB_CONN_MAX_LIFETIME_MINUTES: "30"
@@ -117,7 +115,7 @@ services:
       context: ./services/processor
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgres://chronoscope:${DB_PASSWORD}@postgres:5432/chronoscope?sslmode=disable
+      DATABASE_URL: postgres://chronoscope:${DB_PASSWORD}@postgres:5432/chronoscope?sslmode=${DB_SSLMODE:-disable}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AWS_ENDPOINT_URL: http://minio:9000
       AWS_ACCESS_KEY_ID: ${MINIO_USER}
@@ -139,9 +137,9 @@ services:
       dockerfile: Dockerfile
     environment:
       VITE_API_URL: "https://api.yourdomain.com/v1"
-      VITE_PROJECT_ID: "your-project-id"
+      VITE_ANALYTICS_URL: "https://api.yourdomain.com/v1"
     ports:
-      - "127.0.0.1:3000:80"
+      - "127.0.0.1:3000:8080"
     restart: unless-stopped
 
 volumes:
@@ -157,9 +155,12 @@ export DB_PASSWORD=$(openssl rand -base64 32)
 export REDIS_PASSWORD=$(openssl rand -base64 32)
 export MINIO_USER=chronoscope
 export MINIO_PASSWORD=$(openssl rand -base64 32)
+export DB_SSLMODE=disable
 
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker/docker-compose.prod.yml up -d
 ```
+
+Use `DB_SSLMODE=require` or `verify-full` only when PostgreSQL is configured for TLS, such as with a managed database or a custom TLS-enabled Postgres deployment.
 
 ---
 
@@ -171,6 +172,7 @@ docker compose -f docker-compose.prod.yml up -d
 |-------------------------------|---------------|-----------------------------------|
 | `SERVER_ADDR`                 | `:8080`       | HTTP listen address               |
 | `DATABASE_URL`                | —             | PostgreSQL connection string      |
+| `DB_SSLMODE`                  | `disable` in compose | PostgreSQL TLS mode used when composing `DATABASE_URL` |
 | `MINIO_ENDPOINT`              | —             | MinIO host:port                   |
 | `MINIO_ACCESS_KEY`            | —             | MinIO access key                  |
 | `MINIO_SECRET_KEY`            | —             | MinIO secret key                  |
@@ -186,6 +188,7 @@ docker compose -f docker-compose.prod.yml up -d
 |-------------------------------|---------------|-----------------------------------|
 | `SERVER_ADDR`                 | `:8081`       | HTTP listen address               |
 | `DATABASE_URL`                | —             | PostgreSQL connection string      |
+| `DB_SSLMODE`                  | `disable` in compose | PostgreSQL TLS mode used when composing `DATABASE_URL` |
 | `DB_MAX_OPEN_CONNS`           | `25`          | Max open DB connections           |
 | `DB_MAX_IDLE_CONNS`           | `5`           | Max idle DB connections           |
 | `DB_CONN_MAX_LIFETIME_MINUTES`| `30`          | Max DB connection lifetime        |
@@ -207,7 +210,7 @@ docker compose -f docker-compose.prod.yml up -d
 | Variable          | Default                      | Description              |
 |-------------------|------------------------------|--------------------------|
 | `VITE_API_URL`    | `http://localhost:8080/v1`   | Ingestion API base URL   |
-| `VITE_PROJECT_ID` | —                            | Default project UUID     |
+| `VITE_ANALYTICS_URL` | `http://localhost:8081/v1` | Analytics API base URL |
 
 ---
 

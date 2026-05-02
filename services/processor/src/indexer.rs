@@ -99,13 +99,9 @@ mod tests {
         });
 
         let timeline = EventTimeline { events: vec![] };
-        let index = rt.block_on(async {
-            generate_index(&video_path, &timeline).await.unwrap()
-        });
+        let index = rt.block_on(async { generate_index(&video_path, &timeline).await.unwrap() });
 
         assert!(index.video_url.contains("file://"));
         let _ = std::fs::remove_file(&video_path);
     }
 }
-
-

@@ -2,14 +2,16 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/chronoscope/ingestion/internal/config"
 	"github.com/gin-gonic/gin"
+	"github.com/minio/minio-go/v7"
 )
 
-// GetVideo returns a presigned URL for the processed session video.
+// GetVideo streams the processed session video through the authenticated API.
 func GetVideo(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sessionID := c.Param("id")
@@ -27,14 +29,26 @@ func GetVideo(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// Presigned URL valid for 15 minutes
-		presignedURL, err := cfg.Minio.PresignedGetObject(ctx, cfg.ProcessedBucketName, sessionID+"/session.mp4", 15*time.Minute, nil)
+		objectName := sessionID + "/session.mp4"
+		info, err := cfg.Minio.StatObject(ctx, cfg.ProcessedBucketName, objectName, minio.StatObjectOptions{})
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate video URL"})
+			var minioErr minio.ErrorResponse
+			if errors.As(err, &minioErr) && minioErr.Code == "NoSuchKey" {
+				c.JSON(http.StatusNotFound, gin.H{"error": "processed video not found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to stat video"})
 			return
 		}
 
+		object, err := cfg.Minio.GetObject(ctx, cfg.ProcessedBucketName, objectName, minio.GetObjectOptions{})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read video"})
+			return
+		}
+		defer object.Close()
+
 		c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
-		c.Redirect(http.StatusFound, presignedURL.String())
+		c.DataFromReader(http.StatusOK, info.Size, "video/mp4", object, nil)
 	}
 }

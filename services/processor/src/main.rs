@@ -30,6 +30,9 @@ async fn main() -> anyhow::Result<()> {
             Some(session_id) = rx.recv() => {
                 if let Err(e) = process_session(&config, &session_id).await {
                     error!("Failed to process session {}: {}", session_id, e);
+                    if let Err(status_err) = db::mark_session_failed(&config, &session_id, &e.to_string()).await {
+                        error!("Failed to mark session {} as failed: {}", session_id, status_err);
+                    }
                 }
             }
             _ = tokio::signal::ctrl_c() => {
@@ -49,8 +52,13 @@ async fn main() -> anyhow::Result<()> {
 async fn process_session(config: &config::Config, session_id: &str) -> anyhow::Result<()> {
     info!("Processing session: {}", session_id);
 
+    db::mark_session_processing(config, session_id).await?;
+
     // 1. Download chunks from MinIO/S3
     let (_temp_dir, chunks) = downloader::download_chunks(config, session_id).await?;
+    if chunks.is_empty() {
+        anyhow::bail!("no capture chunks found for session");
+    }
 
     // 2. Deduplicate frames using perceptual hash
     let unique_frames = deduplicator::deduplicate(chunks).await?;

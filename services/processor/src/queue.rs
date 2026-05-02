@@ -1,6 +1,7 @@
 use crate::config::Config;
 use anyhow::Result;
 use redis::aio::MultiplexedConnection;
+use redis::streams::StreamReadReply;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info, warn};
 
@@ -8,15 +9,12 @@ const STREAM_KEY: &str = "chronoscope:process_queue";
 const GROUP_NAME: &str = "chronoscope-processor";
 const CONSUMER_NAME: &str = "processor-1";
 
-type StreamEntry = (String, Vec<(String, Vec<(String, String)>)>);
-type StreamResult = Option<Vec<StreamEntry>>;
-
 async fn create_consumer_group(con: &mut MultiplexedConnection) -> Result<()> {
     let result: redis::RedisResult<()> = redis::cmd("XGROUP")
         .arg("CREATE")
         .arg(STREAM_KEY)
         .arg(GROUP_NAME)
-        .arg("$")
+        .arg("0")
         .arg("MKSTREAM")
         .query_async(con)
         .await;
@@ -35,10 +33,7 @@ async fn create_consumer_group(con: &mut MultiplexedConnection) -> Result<()> {
     Ok(())
 }
 
-pub async fn queue_listener(
-    config: Config,
-    tx: tokio::sync::mpsc::Sender<String>,
-) -> Result<()> {
+pub async fn queue_listener(config: Config, tx: tokio::sync::mpsc::Sender<String>) -> Result<()> {
     let mut con = config
         .redis_client
         .get_multiplexed_async_connection()
@@ -48,7 +43,7 @@ pub async fn queue_listener(
     let mut backoff_secs = 5u64;
 
     loop {
-        let result: redis::RedisResult<StreamResult> = redis::cmd("XREADGROUP")
+        let result: redis::RedisResult<StreamReadReply> = redis::cmd("XREADGROUP")
             .arg("GROUP")
             .arg(GROUP_NAME)
             .arg(CONSUMER_NAME)
@@ -63,22 +58,18 @@ pub async fn queue_listener(
             .await;
 
         match result {
-            Ok(Some(streams)) => {
+            Ok(reply) => {
                 backoff_secs = 5;
-                for (_stream_key, entries) in streams {
-                    for (entry_id, fields) in entries {
-                        let session_id = fields
-                            .iter()
-                            .find(|(k, _)| k == "session_id")
-                            .map(|(_, v)| v.clone())
-                            .unwrap_or_default();
+                for stream in reply.keys {
+                    for entry in stream.ids {
+                        let session_id = entry.get::<String>("session_id").unwrap_or_default();
 
                         if session_id.is_empty() {
-                            warn!("Empty session_id in stream entry {}", entry_id);
+                            warn!("Empty session_id in stream entry {}", entry.id);
                             let _: redis::RedisResult<()> = redis::cmd("XACK")
                                 .arg(STREAM_KEY)
                                 .arg(GROUP_NAME)
-                                .arg(&entry_id)
+                                .arg(&entry.id)
                                 .query_async(&mut con)
                                 .await;
                             continue;
@@ -93,14 +84,11 @@ pub async fn queue_listener(
                         let _: redis::RedisResult<()> = redis::cmd("XACK")
                             .arg(STREAM_KEY)
                             .arg(GROUP_NAME)
-                            .arg(&entry_id)
+                            .arg(&entry.id)
                             .query_async(&mut con)
                             .await;
                     }
                 }
-            }
-            Ok(None) => {
-                continue;
             }
             Err(e) => {
                 warn!(

@@ -1,10 +1,8 @@
 use anyhow::Result;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 pub async fn start_capture(
-    buffer: Arc<Mutex<crate::buffer::CircularBuffer>>,
+    _frame_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
     frame_rate: u32,
     cancel_token: CancellationToken,
 ) -> Result<()> {
@@ -16,8 +14,7 @@ pub async fn start_capture(
     loop {
         tokio::select! {
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => {
-                // Placeholder: actual PipeWire capture logic will be implemented here.
-                let _ = buffer;
+                tracing::warn!("Wayland/PipeWire capture is not implemented yet; use an X11 session for recording");
             }
             _ = cancel_token.cancelled() => {
                 tracing::info!("Wayland capture cancelled, shutting down");
@@ -32,19 +29,14 @@ pub async fn start_capture(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
-    use tokio::sync::Mutex;
     use tokio_util::sync::CancellationToken;
-    use crate::buffer::CircularBuffer;
 
     #[tokio::test]
     async fn test_wayland_capture_cancellable() {
-        let buffer = Arc::new(Mutex::new(CircularBuffer::new(1024)));
+        let (tx, _rx) = tokio::sync::mpsc::channel(1);
         let token = CancellationToken::new();
         let child = token.child_token();
-        let handle = tokio::spawn(async move {
-            start_capture(buffer, 1, child).await
-        });
+        let handle = tokio::spawn(async move { start_capture(tx, 1, child).await });
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         token.cancel();
         let result = handle.await.unwrap();
